@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""harness2-loop: continuous-improvement hook runner.
+"""harness2-loop: continuous-improvement hook runner (flag protocol, B+C).
 
 Invoked by Agnes Code hooks (PostToolUseFailure / AfterShellExecution).
 It:
@@ -9,8 +9,19 @@ It:
      improvement recipe (build-failure signal, or a git commit),
   3. applies a per-signal cooldown to stop the loop from re-triggering
      itself (the recipe itself runs builds/tests/commits),
-  4. launches `Agnes Code run --recipe <recipe> ...` in a DETACHED
-     background process and returns immediately.
+  4. writes a pending trigger flag to .state/pending_re.json and returns
+     immediately.
+
+Flag protocol (why not spawn a CLI):
+  Desktop Agnes Code ships no headless CLI binary (verified:
+  "C:\\Program Files\\AgnesCode\\AgnesCode.exe" is a GUI launcher and
+  resources\\bin\\ has no CLI). So this hook only *records* the trigger;
+  the actual re-run is drained by:
+    B) in-session:  MCP tools harness2_requeue (drain) / harness2_run,
+                    served by mcp_server/harness2_mcp.py, or
+    C) scheduled:   a scheduler (Agnes Code desktop scheduling or
+                    Windows Task Scheduler) periodically drains the flag
+                    and runs the recipe (see config.schedule_hint).
 
 This script is observation-only: it never blocks the session and always
 exits 0 so it can never crash or block Agnes Code (hook failures are
@@ -135,29 +146,39 @@ def should_trigger(signal, cfg, payload):
     return any(re.search(p, ctx, re.IGNORECASE) for p in patterns)
 
 
-def spawn_detached(cmd_list, repo_root, log_path):
-    if os.name == "nt":
-        CREATE_NEW_PROCESS_GROUP = 0x00000200
-        DETACHED_PROCESS = 0x00000008
-        out = open(log_path, "a")
-        subprocess.Popen(
-            cmd_list,
-            cwd=repo_root,
-            creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
-            stdout=out,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-        )
-    else:
-        out = open(log_path, "a")
-        subprocess.Popen(
-            cmd_list,
-            cwd=repo_root,
-            start_new_session=True,
-            stdout=out,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-        )
+def queue_path(root_path):
+    return os.path.join(state_dir(root_path), "pending_re.json")
+
+
+def write_flag(root_path, cfg, signal, payload):
+    """Record a pending re-run trigger (flag protocol).
+
+    Consumed by the MCP server (drained by harness2_requeue / harness2_run)
+    or by a scheduler (C). The flag carries everything the recipe needs,
+    plus provenance for the log.
+    """
+    repo_root = cfg.get("repo_root") or os.getcwd()
+    recipe = cfg.get("recipe", "recipes/harness2-any-project.yaml")
+    params = dict(cfg.get("params") or {})
+    if signal == "build-failure":
+        params.setdefault("dry_run", "false")
+    flag = {
+        "signal": signal,
+        "ts": time.time(),
+        "iso": datetime.datetime.now().isoformat(timespec="seconds"),
+        "recipe": recipe,
+        "params": params,
+        "runs_dir": cfg.get("runs_dir", ""),
+        "runs_namespace": cfg.get("runs_namespace", "continuous"),
+        "session_id": payload.get("session_id", ""),
+        "tool_name": payload.get("tool_name", ""),
+        "note": "pending re-run trigger written by harness2-loop hook "
+                 "(flag protocol; consumed by MCP harness2_requeue or a scheduler)",
+    }
+    p = queue_path(root_path)
+    with open(p, "w", encoding="utf-8") as fh:
+        json.dump(flag, fh, indent=2, ensure_ascii=False)
+    return flag
 
 
 def main():
@@ -180,37 +201,23 @@ def main():
         append_log(root_path, "%s: within cooldown, skip" % signal)
         return 0
 
-    repo_root = cfg.get("repo_root") or os.getcwd()
-    recipe = cfg.get("recipe", "recipes/harness2-any-project.yaml")
-    recipe_path = recipe if os.path.isabs(recipe) else os.path.join(repo_root, recipe)
-
-    cli = (cfg.get("cli", "Agnes Code")).split()
-    params = dict(cfg.get("params") or {})
-    if signal == "build-failure":
-        params.setdefault("dry_run", "false")
-
-    cmd_list = cli + ["run", "--recipe", recipe_path]
-    for k, v in params.items():
-        cmd_list.append("--params %s=%s" % (k, v))
-    if cfg.get("runs_dir"):
-        cmd_list += ["--runs-dir", cfg["runs_dir"]]
-    if cfg.get("runs_namespace"):
-        cmd_list += ["--runs-namespace", cfg["runs_namespace"]]
-
-    log_path = os.path.join(state_dir(root_path), "recipe-runs.log")
     try:
-        spawn_detached(cmd_list, repo_root, log_path)
+        flag = write_flag(root_path, cfg, signal, payload)
         mark_run(root_path, state_key)
-        append_log(root_path, "%s: launched: %s" % (signal, " ".join(cmd_list)))
+        append_log(
+            root_path,
+            "%s: flag written to %s (bench=%s k=%s mode=%s) — consumed by "
+            "MCP harness2_requeue or scheduled drain" % (
+                signal,
+                os.path.basename(queue_path(root_path)),
+                flag["params"].get("bench", "?"),
+                flag["params"].get("k", "?"),
+                flag["params"].get("mode", "?"),
+            ),
+        )
     except Exception as e:
-        # keep the log message ASCII-safe and actionable (error text is
-        # locale-dependent and can render as mojibake in UTF-8 logs)
         err = str(e).encode("ascii", "replace").decode("ascii")
-        hint = ""
-        if "WinError 2" in err or "ENOENT" in err:
-            hint = (" -- CLI not found on PATH. Set config.json 'cli' to the "
-                    "absolute path of your Agnes Code CLI binary.")
-        append_log(root_path, "%s: launch failed: %s%s" % (signal, err, hint))
+        append_log(root_path, "%s: flag write failed: %s" % (signal, err))
     return 0
 
 

@@ -158,7 +158,7 @@ leaving the editor.
 | Recipe | [`recipes/harness2-any-project.yaml`](recipes/harness2-any-project.yaml) | Repeatable / schedulable `setup → check → run → judge → report` flow with structured `json_schema` output and cross-platform retry. |
 | Custom agent | [`.agents/agents/harness2-dev-agent.md`](.agents/agents/harness2-dev-agent.md) | Reusable role that picks `bench` / `k` / `mode` / `substrate` and enforces the ordering above. |
 | Skill | [`.agents/skills/harness2-develop/SKILL.md`](.agents/skills/harness2-develop/SKILL.md) | On-demand knowledge: bench selection, order of operations, scaling knobs, reading results, wiring into automation. |
-| Hooks plugin | [`.Agnes Code/plugins/harness2-loop/`](.Agnes Code/plugins/harness2-loop/) | Continuous-improvement closed loop: re-runs the recipe on `PostToolUseFailure` (failed build/test) and `AfterShellExecution` (successful `git commit`), with a cooldown and a detached launch. |
+| Hooks plugin | [`.Agnes Code/plugins/harness2-loop/`](.Agnes Code/plugins/harness2-loop/) | Continuous-improvement closed loop: on `PostToolUseFailure` (failed build/test) or `AfterShellExecution` (successful `git commit`), writes a pending trigger flag; the flag is drained by MCP `harness2_requeue` (in-session, path B) or `drain_requeue.py` (scheduled, path C). |
 
 ### Interactive full-chain flowchart
 
@@ -187,13 +187,15 @@ Agnes Code mcp harness2
 '{"event":"PostToolUseFailure","tool_input":{"command":"cargo test"}}' |
   python ".Agnes Code/plugins/harness2-loop/scripts/rerun_recipe.py" build-failure
 
-# 3. Make sure config.json points at a real Agnes Code CLI binary
-#    (the default "Agnes Code" is not on PATH on most dev machines).
+# 3. (No external CLI needed) The hook only writes a pending flag;
+#    the re-run is drained either in-session (MCP harness2_requeue) or
+#    off-session (scheduled drain_requeue.py). See the flag protocol below.
 
-# 4. Optionally schedule a periodic re-run on top of the event-driven loop
-Agnes Code schedule add --schedule-id harness2-daily `
-  --cron "0 9 * * *" `
-  --recipe-source recipes/harness2-any-project.yaml
+# 4. (Optional, path C) register a periodic off-session drain.
+#    On Windows, use Task Scheduler to run the drain script every N minutes:
+schtasks /create /sc minute /mo 60 /tn harness2-loop-drain `
+  /tr "python ""E:\Self-developed_Apps\G3\harness2\.Agnes Code\plugins\harness2-loop\scripts\drain_requeue.py"""
+#    On Linux/macOS: add a cron entry calling the same drain_requeue.py.
 ```
 
 To disable the hook loop without deleting files, add the plugin name to
@@ -207,6 +209,10 @@ To disable the hook loop without deleting files, add the plugin name to
 
 ### Continuous-improvement closed loop
 
+Desktop Agnes Code has no headless CLI binary, so the hook **does not spawn
+a process** — it records the trigger as a flag file, and one of two drain
+paths executes the pipeline:
+
 ```
 change harness / code
         ↓
@@ -217,22 +223,32 @@ PostToolUseFailure                     AfterShellExecution
         └──────────────┬──────────────┘
                        ↓
         rerun_recipe.py decision chain
-        (signal? → enabled? → cooldown? → detached launch, exit 0)
+        (signal? → enabled? → cooldown? → write flag, exit 0)
                        ↓
-        Agnes Code run --recipe recipes/harness2-any-project.yaml
+              .state/pending_re.json
+                       ↓
+        ┌──────────────┴──────────────┐
+        ↓                             ↓
+  B · in-session                C · scheduled
+  MCP harness2_requeue          drain_requeue.py
+  (agent drains in Agnes       (Task Scheduler / cron
+   session; explicit args      drains off-session; runs
+   win over flag params)       via python -m harness2.cli.*)
+        └──────────────┬──────────────┘
                        ↓
         setup → check → run → judge → report
-                       ↓
-        runs/<bench>/…/judged.json  (runs_namespace = continuous)
+        (runs/<bench>/…/judged.json, runs_namespace = continuous)
                        ↓
         human review → keep k/mode  OR  upgrade to k+1 sequential
                        ↓
         next commit / next failure → loop
 ```
 
-The loop is **event-driven** (not scheduled): hooks catch build/commit
-failures, `Agnes Code schedule add` covers the time dimension; the two
-complement each other.
+The loop is **event-driven**: hooks record build/commit triggers; drain
+path **B** (MCP tool in an open Agnes session) or **C** (periodic scheduler)
+consumes the flag and runs the recipe. B and C share the same flag file and
+are naturally mutually exclusive (first to drain wins), so no run is
+duplicated.
 
 See the [handoff doc](handoff.md) for a full status of what has been done,
 what is still pending, and the known caveats.

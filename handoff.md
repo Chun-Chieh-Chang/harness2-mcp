@@ -24,7 +24,7 @@ harness2 已從「手動 CLI 框架」升級為「**Agnes Code 內建、可自�
 | 3 | Recipe | `recipes/harness2-any-project.yaml` | ✅ 完成 | setup→check→run→judge→report 全流水線；`json_schema` 結構化輸出；跨平台 retry；**已對照官方 `recipe-reference.md` 逐欄核對**，但未機器解析（本機 PyYAML 缺失） |
 | 4 | Custom agent | `.agents/agents/harness2-dev-agent.md` | ✅ 完成 | 6 步工作序、bench/k/mode 決策、約束條款 |
 | 5 | Skill | `.agents/skills/harness2-develop/SKILL.md` | ✅ 完成 | 5 節：bench 選取、操作順序、擴充參數、讀結果、接入自動化（含 hooks 插件） |
-| 6 | Hooks 插件（閉環） | `.Agnes Code/plugins/harness2-loop/` | ✅ 完成 | 含 `plugin.json` / `hooks/hooks.json` / `scripts/rerun_recipe.py` / `scripts/rerun.cmd` / `config.json` / `README.md` / `.state/` |
+| 6 | Hooks 插件（閉環） | `.Agnes Code/plugins/harness2-loop/` | ✅ 完成 | 含 `plugin.json` / `hooks/hooks.json` / `scripts/rerun_recipe.py`（寫旗標）/ `scripts/drain_requeue.py`（C 端 drain）/ `scripts/rerun.cmd` / `config.json` / `README.md` / `.state/`（含 `pending_re.json` 旗標） |
 | 7 | 互動流程圖 | `.agnes/artifacts/flowcharts/harness2-loop-flowchart.html` | ✅ 完成 | 依 flowchart-spec：零依賴原生 SVG + vanilla JS、資料驅動格點、ISO 5807 符號、顯式路由、互動四件套、內建幾何自審計徽章；**已納入 9 節白話結構化說明側欄** |
 | 8 | 三層審計管線 | `scripts/verify-flowchart-spec.js` | ✅ 落檔 | 依 spec 要求存在；本機無 Node 未執行（誠實標註），已在有 Node 環境跑過才算 PASS |
 | 9 | `.gitignore` | `.gitignore` | ✅ 完成 | 排除 `runs/`、`.state/`、`.agnes/cache|work|artifacts/`、`.agns_bridge.env` 機密、`__pycache__/` |
@@ -36,7 +36,8 @@ harness2 已從「手動 CLI 框架」升級為「**Agnes Code 內建、可自�
 - **recipe**＝可重複/排程的流程本：本節全部動作的最终執行物。
 - **agent**＝角色：幫你決定 bench/k/mode/substrate 與順序。
 - **skill**＝知識：挑 bench、讀結果、接自動化。
-- **hooks 插件**＝觸發器：讓上面四樣在「失敗 / commit」時**自動**轉。
+- **hooks 插件**＝觸發器：在「失敗 / commit」時**記訊號**（寫 `.state/pending_re.json` 旗標）；真正重跑由 **B**（MCP `harness2_requeue`，session 內 drain）與 **C**（`drain_requeue.py`，排程 drain）兩端消費旗標執行，互補事件維度與時間維度。
+- **MCP server**＝手動入口 + B 端 drain：`harness2_*` 工具即時調 CLI；`harness2_requeue` 消費 pending 旗標自動重跑。
 - **flowchart HTML**＝視覺化資產 + 白話說明；**verify-flowchart-spec.js**＝它的三層審計管線。
 
 ---
@@ -45,7 +46,7 @@ harness2 已從「手動 CLI 框架」升級為「**Agnes Code 內建、可自�
 
 | # | 事項 | 阻塞原因 | 建議動作 |
 |---|---|---|---|
-| P1 | `config.json` 的 `cli` 欄位（預設 `"Agnes Code"`）在多數機器 PATH 上找不到 | 本機無 Agnes Code CLI 二進位 | 先查 CLI 實際路徑（`Get-Command AgnesCode / agnes` 或問使用者），再寫入絕對路徑；寫完可再餵一次 commit payload 驗證 `launched:` |
+| P1 | ~~`config.json` 的 `cli` 欄位在多數機器 PATH 上找不到~~ | **已以旗標協議關閉**：桌面版 Agnes Code 只有 GUI（`AgnesCode.exe`）+ `agnesd.exe`，無 headless CLI 二進位（已驗證）。改為「hook 只寫 `.state/pending_re.json` 旗標 → B（MCP `harness2_requeue`）或 C（`drain_requeue.py` 排程）drain 執行」，兩端都不需要外部 CLI。已移除 `config.json` 的 `cli` 欄。 | 無（待辦清掉）；若要改 drain 路徑，調 `config.json` 的 `requeue.flag_path` 與 `schedule_hint` |
 | P2 | recipe 未機器解析（PyYAML 未安裝） | Python 3.15 無 C++ 工具鏈，`pip install pyyaml` 失敗 | 在有 PyYAML 的環境跑一次 `Agnes Code run --recipe recipes/harness2-any-project.yaml --params bench=demo --dry-run=true` 確認 schema；或改 `uv pip install pyyaml` |
 | P3 | `scripts/verify-flowchart-spec.js` 未在本機跑過（Node 缺失） | 本機無 Node.js | 裝 Node 20+ 後 `node scripts/verify-flowchart-spec.js .agnes/artifacts/flowcharts/harness2-loop-flowchart.html`，全綠才算 LAYER 1/2/3 全 PASS |
 | P4 | `.agnes/cache/docs*` 內是外部文件快照，未 git 追蹤 | `.gitignore` 已排除 | 若日後要分享文件，改把 `docs/` 內文件 copy 進本 repo 並移除 cache 路徑引用 |
@@ -55,7 +56,7 @@ harness2 已從「手動 CLI 框架」升級為「**Agnes Code 內建、可自�
 
 ## 4. 已知限制（誠實記錄，非缺陷）
 
-- **閉環是事件驅動，非排程**：hooks 只接 build 失敗 / commit；若要「每天自動跑一次」仍需 `Agnes Code schedule add`。
+- **閉環是事件驅動、執行靠 drain**：hooks 只「記訊號」（寫 `pending_re.json`）；真正重跑要由 **B**（MCP `harness2_requeue`，需有開著的 Agnes session）或 **C**（排程 `drain_requeue.py`，session 外）消費旗標。桌面版無 CLI，所以兩端都不 spawn 外部二進位。
 - **`AfterShellExecution` 只在成功時觸發**：build 失敗只能用 `PostToolUseFailure` 接住；commit 只用 `AfterShellExecution` + `matcher: ^git\s+commit`。
 - **裸 `"*"` matcher 在 Agnes 是非法 regex**：整條規則會被靜默跳過，所以 build-failure 規則故意不寫 matcher、改在腳本內用 `config.build_patterns` 過濾。
 - **`PostToolUseFailure` 想 block 工具調用需印 `{"decision":"block"}`**：本插件是純觀測（`exit 0`），block 政策要另外用 `PreToolUse` 寫規則。

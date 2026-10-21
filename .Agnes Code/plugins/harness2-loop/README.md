@@ -20,10 +20,11 @@ commands when a matching lifecycle event fires:
 |------|------|
 | `plugin.json` | Manifest. Identifies the plugin (`name: harness2-loop`). |
 | `hooks/hooks.json` | Maps events → commands. |
-| `scripts/rerun_recipe.py` | The real runner (reads the payload, decides, spawns the detached re-run). |
+| `scripts/rerun_recipe.py` | The trigger recorder (reads the payload, decides, writes the `pending_re.json` flag). |
+| `scripts/drain_requeue.py` | Path C scheduler drain: consumes the flag and runs the pipeline via direct `python -m harness2.cli.*` (no CLI binary needed). |
 | `scripts/rerun.cmd` | Windows fallback if the hook runner has no POSIX `sh -c`. |
-| `config.json` | Per-machine knobs (recipe, params, cooldown, triggers, CLI). |
-| `.state/` | Runtime logs + cooldown markers (created on first run). |
+| `config.json` | Per-machine knobs (recipe, params, cooldown, triggers, requeue, schedule_hint). |
+| `.state/` | Runtime logs, cooldown markers, and `pending_re.json` (created on first run). |
 
 ### Events used
 
@@ -46,11 +47,26 @@ The hook command receives the event payload on **stdin** (`event`,
    (`config.build_patterns`) and on `git commit` for `commit`;
 2. applies a per-signal **cooldown** (`config.cooldown_seconds`, default 600s)
    so the recipe's own builds/commits do not re-trigger the loop;
-3. launches `Agnes Code run --recipe <recipe> --params ...` as a **detached**
-   background process and returns immediately.
+3. writes a **pending trigger flag** to `.state/pending_re.json` and returns
+   immediately.
 
 The script is observation-only: it always exits `0` and never blocks the
 session (a failing hook is logged by Agnes, not fatal).
+
+### Flag protocol (B + C, no external CLI needed)
+
+Desktop Agnes Code ships a GUI app (`AgnesCode.exe`) plus a backend daemon
+(`resources\bin\agnesd.exe`), but **no headless CLI binary** — so a hook
+cannot `spawn` `Agnes Code run --recipe …` directly. The plugin therefore
+uses a **two-tier flag protocol**:
+
+| Tier | Who | How |
+|---|---|---|
+| **B — in-session drain** | Agnes Code agent (MCP tool) | `mcp_server/harness2_mcp.py` exposes `harness2_requeue`: it reads `pending_re.json`, routes by `bench` (demo→`harness2-demo`, jb/lab/wb→`harness2-run`, ags-demo→`harness2-agns-demo`), merges the flag's params into the tool call (explicit args win), drains the flag, and returns the pipeline result. `harness2_run` also *notices* a pending flag and appends a `[requeue] NOTE` so the agent can drain it. |
+| **C — scheduled drain** | OS scheduler | `scripts/drain_requeue.py` is invoked periodically (Windows Task Scheduler via `config.schedule_hint.windows_task_sch`, or any cron). It consumes the flag, runs the same pipeline via direct `python -m harness2.cli.*` (zero external CLI), logs to `recipe-runs.log`, and deletes the flag. No flag → safe no-op. |
+
+Both tiers share the **same flag file**, so they are naturally mutually
+exclusive (whichever runs first consumes it) and idempotent.
 
 ## Flow diagrams
 
@@ -66,7 +82,7 @@ session (a failing hook is logged by Agnes, not fatal).
 flowchart TD
     subgraph once["One-time setup (do once)"]
         A1["Open harness2 in Agnes Code (project window)"] --> A2["Agnes Code mcp harness2<br/>(harness2_* tools in session scope)"]
-        A2 --> A3["Align config.json: cli / params / dry_run / cooldown"]
+        A2 --> A3["Align config.json: params / dry_run / cooldown<br/>/ requeue / schedule_hint"]
         A3 --> A4["Smoke test: feed a fake payload to rerun_recipe.py<br/>log must show 'launched: ...'"]
     end
 
@@ -86,11 +102,20 @@ flowchart TD
         G1 -- no --> S1["logged to .state/harness2-loop.log<br/>exit 0"]
         G1 -- yes --> G2{"same-signal cooldown<br/>already hit (default 600s)?"}
         G2 -- yes --> S1
-        G2 -- no --> G3["detached launch:<br/>Agnes Code run --recipe ...<br/>write cooldown stamp, exit 0"]
+        G2 -- no --> G3["write flag: .state/pending_re.json<br/>+ cooldown stamp, exit 0"]
     end
 
+    G3 --> P1[.state/pending_re.json<br/>shared flag]
+    subgraph drainB["B · in-session drain (MCP tool)"]
+        P1 --> B1["harness2_requeue / harness2_run<br/>routes by bench, explicit args win"]
+    end
+    subgraph drainC["C · scheduled drain (no CLI needed)"]
+        P1 --> C1["drain_requeue.py via Task Scheduler<br/>direct python -m harness2.cli.*"]
+    end
+    B1 --> R1
+    C1 --> R1
     subgraph recipe["background recipe run"]
-        G3 --> R1["harness2-setup"] --> R2["harness2-check"]
+        R1["harness2-setup"] --> R2["harness2-check"]
         R2 --> R3["harness2 run<br/>Propose-Probe-Compose"]
         R3 --> R4["harness2-judge<br/>same identity params"] --> R5["harness2-report"]
     end
@@ -117,7 +142,7 @@ flowchart LR
     G -- no --> X
     G -- yes --> CD{"within cooldown for<br/>this signal (600s)?"}
     CD -- yes --> X
-    CD -- no --> L["detached launch:<br/>Agnes Code run --recipe ..."] --> Z["exit 0<br/>(never blocks the session)"]
+    CD -- no --> L["write flag:<br/>.state/pending_re.json<br/>+ cooldown stamp"] --> Z["exit 0<br/>(never blocks the session)"]
     X --> Z
 ```
 
@@ -150,11 +175,15 @@ or user `~/.config/Agnes Code/settings.json`):
 
 Edit `config.json`:
 
-- `repo_root` / `recipe` – where the CLI runs and which recipe to re-run.
+- `repo_root` / `recipe` – where the pipeline runs and which recipe to re-run.
 - `params` – the `--params` passed to the recipe (bench, k, mode, substrate,
   seed, dry_run, min_gain, model). Set `dry_run: "true"` to dry-run the loop.
 - `cooldown_seconds` – guard against self-triggering (raise it if runs are long).
 - `build_failure_trigger` / `commit_trigger` – switch each trigger on/off.
+- `requeue.flag_path` – where the trigger flag is written/read (B + C share it).
+- `schedule_hint` – path C: enable a periodic drain, set `interval_minutes`,
+  and pick a `dry_run` policy. On Windows, register the one-liner in
+  `windows_task_sch`; the drain runs `scripts/drain_requeue.py`.
 - `runs_namespace` – a stable namespace so loop runs share a judged namespace
   (keep it constant so results stay comparable).
 
@@ -165,6 +194,11 @@ Edit `config.json`:
   plugin is not in `disabledPlugins`.
 - Hook runs but nothing re-triggers: check `.state/harness2-loop.log` for
   `no build/commit signal`, `within cooldown`, or `disabled in config`.
+- Triggered but the recipe didn't run: the hook only *writes* the flag
+  (`pending_re.json`). Close the loop by draining it — in-session, call the
+  `harness2_requeue` MCP tool; off-session, run the scheduled
+  `drain_requeue.py` (or `python -m ... drain_requeue.py` once). A stale
+  flag is removed automatically on the next drain.
 - A `PostToolUseFailure` hook that wants to *block* must print
   `{"decision":"block","reason":"..."}` to stdout; this plugin only observes,
   so it prints nothing and exits 0.

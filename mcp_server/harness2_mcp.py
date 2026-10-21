@@ -164,7 +164,80 @@ def _run_cli(tool: str, args: dict[str, Any], timeout_s: int) -> tuple[bool, str
         return False, f"spawn failed: {exc}"
 
 
-# ---------------------------------------------------------------- tool schemas
+# ---------------------------------------------------------------- requeue flag protocol (B)
+
+# The harness2-loop hooks plugin (no headless CLI exists on desktop Agnes
+# Code) records trigger flags here; MCP tools drain it instead of spawning.
+_REQUEUE_REL = os.path.join(".Agnes Code", "plugins", "harness2-loop", ".state", "pending_re.json")
+
+
+def _requeue_path() -> Path:
+    return REPO_ROOT / _REQUEUE_REL
+
+
+def _requeue_read() -> dict | None:
+    p = _requeue_path()
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _requeue_consume() -> bool:
+    p = _requeue_path()
+    try:
+        p.unlink(missing_ok=True)
+        return True
+    except Exception:
+        return False
+
+
+def _requeue_args_from_flag(flag: dict, explicit: dict[str, Any]) -> dict[str, Any]:
+    """Merge flag params into explicit args; explicit wins (agent can override)."""
+    merged = dict(explicit)
+    fp = flag.get("params") or {}
+    for k, v in fp.items():
+        merged.setdefault(k, v)
+    runs_ns = flag.get("runs_namespace")
+    if runs_ns:
+        os.environ.setdefault("HARNESS2_RUNS_NAMESPACE", str(runs_ns))
+    runs_dir = flag.get("runs_dir")
+    if runs_dir:
+        os.environ.setdefault("HARNESS2_RUNS_DIR", runs_dir)
+    bench = fp.get("bench")
+    if bench and "bench" not in explicit:
+        merged["bench"] = bench
+    return merged
+
+
+def _drain_requeue(args: dict[str, Any]) -> tuple[bool, str]:
+    flag = _requeue_read()
+    if not flag:
+        return True, "requeue empty: no pending trigger flag"
+    bench = str((flag.get("params") or {}).get("bench", "demo"))
+    bench_map = {"demo": "harness2-demo", "ags-demo": "harness2-agns-demo",
+                 "jb": "harness2", "lab": "harness2", "wb": "harness2"}
+    tool = bench_map.get(bench, "harness2-run")
+    if tool == "harness2-demo":
+        k = int((flag.get("params") or {}).get("k", 2))
+        ok, text = _run_cli("harness2-demo", {"k": k, "output": "runs/demo",
+                                                "timeout_s": int(args.get("timeout_s", 600))}, int(args.get("timeout_s", 600)))
+    elif tool == "harness2-agns-demo":
+        fp = flag.get("params") or {}
+        ok, text = _run_cli("harness2-agns-demo", {"k": int(fp.get("k", 2)),
+                                                    "mode": str(fp.get("mode", "both"))}, int(args.get("timeout_s", 3600)))
+    else:
+        ok, text = _run_cli("harness2-run", _requeue_args_from_flag(flag, {
+            "bench": bench,
+            "k": int((flag.get("params") or {}).get("k", 1)),
+            "mode": str((flag.get("params") or {}).get("mode", "parallel")),
+            "substrate": str((flag.get("params") or {}).get("substrate", "oc")),
+            "seed": (flag.get("params") or {}).get("seed"),
+            "dry_run": str((flag.get("params") or {}).get("dry_run", "true")).lower() in ("1", "true", "yes"),
+        }), int(args.get("timeout_s", 7200)))
+    _requeue_consume()
+    stamp = flag.get("iso", "?")
+    return ok, f"[requeue drain signal={flag.get('signal','?')} @ {stamp}]\n{text}"
 
 _TOOLS: list[dict[str, Any]] = [
     {
@@ -264,6 +337,16 @@ _TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "harness2_requeue",
+        "description": "Drain a pending re-run flag written by the harness2-loop hooks plugin (flag protocol). If a flag is pending, auto-runs the recipe for its bench/signal. Safe no-op when no flag exists. Use this when a build-failure or commit event has been recorded and you want to close the continuous-improvement loop in-session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeout_s": {"type": "integer", "default": 7200},
+            },
+        },
+    },
+    {
         "name": "agnes_bridge_status",
         "description": "Check whether the Agnes OpenAI-compatible proxy (Path A) is running on 127.0.0.1:8620 and list /v1/models.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -308,6 +391,8 @@ def _bridge_start(args: dict[str, Any]) -> tuple[bool, str]:
 
 
 def _dispatch(name: str, args: dict[str, Any]) -> tuple[bool, str]:
+    if name == "harness2_requeue":
+        return _drain_requeue(args)
     if name == "agnes_bridge_status":
         return _bridge_status()
     if name == "agnes_bridge_start":
@@ -316,7 +401,12 @@ def _dispatch(name: str, args: dict[str, Any]) -> tuple[bool, str]:
     if cli is None:
         return False, f"unknown tool {name}"
     timeout = int(args.get("timeout_s", 1800)) if name.endswith("_demo") or name.startswith("harness2_") else int(args.get("timeout_s", 900))
-    return _run_cli(cli, {k: v for k, v in args.items() if k != "timeout_s"}, timeout)
+    ok, text = _run_cli(cli, {k: v for k, v in args.items() if k != "timeout_s"}, timeout)
+    # Non-invasive flag awareness: if the hooks plugin has recorded a pending
+    # re-run, tell the agent so it can drain it via harness2_requeue.
+    if name == "harness2_run" and _requeue_read():
+        text += "\n[requeue] NOTE: a pending re-run flag from harness2-loop is queued; call harness2_requeue to drain it."
+    return ok, text
 
 
 # ---------------------------------------------------------------- MCP transport

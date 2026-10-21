@@ -1,12 +1,23 @@
 {
   "repo_root": "E:\\Self-developed_Apps\\G3\\harness2",
-  "cli": "Agnes Code",
   "recipe": "recipes/harness2-any-project.yaml",
+  "requeue": {
+    "flag_path": ".state/pending_re.json",
+    "note": "Flag protocol: hooks write pending_re.json; MCP harness2_requeue or a scheduled drain consumes it and runs the recipe."
+  },
   "runs_dir": "",
   "runs_namespace": "continuous",
   "cooldown_seconds": 600,
   "build_failure_trigger": true,
   "commit_trigger": true,
+  "schedule_hint": {
+    "enabled": true,
+    "purpose": "C) complementary time-dimension drain: a scheduler periodically consumes the pending flag and runs the recipe when no Agnes session is open.",
+    "interval_minutes": 60,
+    "windows_task_sch": "schtasks /create /sc minute /mo 60 /tn harness2-loop-drain /tr \"python \\\"<repo>\\.Agnes Code\\plugins\\harness2-loop\\scripts\\drain_requeue.py\\\"\"",
+    "drain_script": "scripts/drain_requeue.py",
+    "dry_run": "true"
+  },
   "build_patterns": [
     "\\b(cargo|npm|pnpm|yarn|make|go)\\b.*\\b(build|test)\\b",
     "\\bpython\\d?\\b.*\\b(pip\\s+install|pytest|build|test)\\b",
