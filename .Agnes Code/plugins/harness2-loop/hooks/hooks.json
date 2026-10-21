@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$FLUIGIN_ROOT/scripts/rerun_recipe.py\" build-failure",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "AfterShellExecution": [
+      {
+        "matcher": "^git\\s+commit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$FLUIGIN_ROOT/scripts/rerun_recipe.py\" commit",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

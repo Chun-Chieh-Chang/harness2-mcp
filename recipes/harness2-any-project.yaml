@@ -1,0 +1,170 @@
+# Agnes Code session recipe: drive Harness² to develop/refine an arbitrary project.
+#
+# Recipe file locations: ./recipe (repo root), a .yaml/.yml path, or a recipe-library
+# entry (name). See docs/guides/recipes/session-recipes.md.
+#
+# Run it:
+#   Agnes Code run --recipe recipes/harness2-any-project.yaml \
+#       --params project_name=<name> bench=demo k=1 mode=parallel substrate=ags
+#
+# Schedule it (runs headless nightly, results saved under runs/):
+#   Agnes Code schedule add --schedule-id harness2-nightly \
+#       --cron "0 2 * * *" --recipe-source recipes/harness2-any-project.yaml
+#
+# The `extensions` block below makes the harness2 MCP tools available for the whole
+# recipe run; without it only Agnes Code's default extensions would be in scope.
+version: 1.0.0
+title: "{{ project_name }} Harness² development sweep"
+description: >
+  Recursively improve the agent harness around a frozen model for {{ project_name }}
+  on bench={{ bench }}, k={{ k }}, mode={{ mode }}, substrate={{ substrate }};
+  auto-judge, report, and emit a structured improvement summary.
+instructions: |
+  You are a project-development agent running a single Harness² refinement pass on
+  {{ project_name }} (project_path={{ project_path }}).
+  1. If {{ bench }} is "demo": call harness2_demo with k={{ k }},
+     mode={{ mode }}, output="runs/demo".
+  2. If {{ bench }} is "ags-demo": call harness2_agns_demo with k={{ k }},
+     mode={{ mode }}. This uses Agnes as the substrate (Path B); it runs with zero
+     credentials when AGNES_CLI is unset.
+  3. Otherwise (jb | lab | wb): call harness2_setup then harness2_check; if check
+     fails, stop and report the missing dependency — do not proceed to a paid run.
+  4. For model-backed benches, call harness2_run with bench={{ bench }}, k={{ k }},
+     mode={{ mode }}, substrate={{ substrate }}, seed={{ seed }}, dry_run={{ dry_run }}.
+     Respect dry_run: if true, stop after previewing the stream, before any paid
+     rollout.
+  5. Unless dry_run, call harness2_judge with the SAME identity (bench, k, mode,
+     substrate, seed) so the namespace lines up; then harness2_report with the same
+     identity.
+  6. Read the report; fill the structured response: adopted_harness (file path of the
+     adopted harness under runs/), improved_metrics (base vs improved scores and
+     delta), evidence (key quotes/paths proving the gain), needs_followup (true if
+     delta < {{ min_gain }} or any task regressed — a follow-up sequential pass with
+     k+1 is recommended in that case).
+prompt: |
+  Start the Harness² development sweep for {{ project_name }} now.
+  bench={{ bench }}, k={{ k }}, mode={{ mode }}, substrate={{ substrate }},
+  seed={{ seed }}, dry_run={{ dry_run }}.
+  Respect dry_run: if true, stop after previewing the stream and do not spend on
+  rollouts. If the sweep judges below min_gain={{ min_gain }}, set needs_followup=true
+  and recommend a sequential re-run with k+1.
+activities:
+  - "Run the harness2 sweep for {{ project_name }}: bench={{ bench }}, k={{ k }}, mode={{ mode }}, substrate={{ substrate }}, seed={{ seed }}"
+  - "Check results: compare improved vs base scores and flag any task that regressed"
+settings:
+  agnes_provider: "agnes"
+  agnes_model: "{{ model }}"
+  temperature: 0.2
+extensions:
+  - type: stdio
+    name: harness2
+    cmd: python
+    args: ["-m", "mcp_server.harness2_mcp"]
+    env_keys:
+      - HARNESS2_REPO
+      - HARNESS2_RUNS_DIR
+      - AGNES_CLI
+    timeout: 900
+    description: "Harness² CLI suite (setup/check/run/judge/report/demo/agns-demo) plus the Agnes OpenAI-compatible bridge helpers"
+parameters:
+  - key: project_name
+    input_type: string
+    requirement: required
+    description: "Human name of the project under development"
+  - key: project_path
+    input_type: string
+    requirement: optional
+    default: ""
+    description: "Absolute path to the target project; empty means the current workspace"
+  - key: bench
+    input_type: select
+    requirement: optional
+    default: "demo"
+    description: "demo | ags-demo | jb | lab | wb — demo/ags-demo run with zero credentials"
+    options:
+      - demo
+      - ags-demo
+      - jb
+      - lab
+      - wb
+  - key: k
+    input_type: number
+    requirement: optional
+    default: "1"
+    description: "Task-level recursion budget (R=4k rollouts, P=3k improver sessions)"
+  - key: mode
+    input_type: select
+    requirement: optional
+    default: "parallel"
+    description: "parallel | sequential | both; sequential refines deeper"
+    options:
+      - parallel
+      - sequential
+      - both
+  - key: substrate
+    input_type: select
+    requirement: optional
+    default: "ags"
+    description: "Executor: oc=opencode, cx=codex, ags=agnes (Path B substrate)"
+    options:
+      - oc
+      - cx
+      - ags
+  - key: seed
+    input_type: number
+    requirement: optional
+    default: "0"
+    description: "Stream-order seed for reproducibility; 0 means leave it to the CLI's default ordering"
+  - key: dry_run
+    input_type: boolean
+    requirement: optional
+    default: "false"
+    description: "true = preview the stream and stop before any paid rollout"
+  - key: min_gain
+    input_type: number
+    requirement: optional
+    default: "0"
+    description: "Minimum acceptable improvement delta; below this, needs_followup=true"
+  - key: model
+    input_type: string
+    requirement: optional
+    default: "agnes"
+    description: "Model id used by the improvement sessions (frozen endpoint via Path A)"
+retry:
+  max_retries: 2
+  timeout_seconds: 300
+  checks:
+    - type: shell
+      command: "python -c \"import sys,pathlib;p=pathlib.Path('runs/{{ bench }}');ok=any(p.rglob('*.json')) if p.exists() else True;sys.exit(0 if ok else 1)\""
+response:
+  json_schema:
+    type: object
+    properties:
+      adopted_harness:
+        type: string
+        description: "Path under runs/ of the adopted harness from this sweep"
+      improved_metrics:
+        type: object
+        properties:
+          base_score:
+            type: number
+            description: "Reference (base harness) score before this sweep"
+          improved_score:
+            type: number
+            description: "Score of the selected refined harness"
+          delta:
+            type: number
+            description: "improved_score - base_score"
+      evidence:
+        type: array
+        items:
+          type: string
+        description: "Quotes / file paths that back the improvement claim"
+      needs_followup:
+        type: boolean
+        description: "true when delta < min_gain or any task regressed"
+    required:
+      - adopted_harness
+      - improved_metrics
+      - evidence
+      - needs_followup

@@ -1,0 +1,5 @@
+{
+  "name": "harness2-loop",
+  "version": "0.1.0",
+  "description": "Continuously re-run the harness2 improvement recipe on build-failure and git commit (closed-loop, self-improving harness)."
+}

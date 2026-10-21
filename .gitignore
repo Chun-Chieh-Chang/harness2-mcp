@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# harness2 runtime state (per-machine, not part of the integration source)
+runs/
+*.state/
+
+# harness2-loop hook runtime state
+.Agnes Code/plugins/harness2-loop/.state/
+
+# Agnes Code local caches / working dirs
+.agnes/cache/
+.agnes/work/
+.agnes/artifacts/
+
+# agns_bridge env (contains secrets when Path A is configured)
+.agns_bridge.env
+.agns_bridge.env.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

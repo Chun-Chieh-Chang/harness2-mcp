@@ -1,0 +1,27 @@
+{
+  "repo_root": "E:\\Self-developed_Apps\\G3\\harness2",
+  "cli": "Agnes Code",
+  "recipe": "recipes/harness2-any-project.yaml",
+  "runs_dir": "",
+  "runs_namespace": "continuous",
+  "cooldown_seconds": 600,
+  "build_failure_trigger": true,
+  "commit_trigger": true,
+  "build_patterns": [
+    "\\b(cargo|npm|pnpm|yarn|make|go)\\b.*\\b(build|test)\\b",
+    "\\bpython\\d?\\b.*\\b(pip\\s+install|pytest|build|test)\\b",
+    "\\b(build|test|pytest)\\b"
+  ],
+  "params": {
+    "project_name": "harness2",
+    "project_path": "",
+    "bench": "demo",
+    "k": 1,
+    "mode": "parallel",
+    "substrate": "ags",
+    "seed": 0,
+    "dry_run": "false",
+    "min_gain": 0,
+    "model": "agnes"
+  }
+}
