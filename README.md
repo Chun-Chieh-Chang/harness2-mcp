@@ -57,6 +57,7 @@ https://github.com/user-attachments/assets/76b10548-b14b-4c8f-9aa5-a93662df4d56
 - [Harness components](#harness-components)
 - [Install](#install)
 - [Run a benchmark](#run-a-benchmark)
+- [Agnes Code integration](#agnes-code-integration)
 - [Experiments](#experiments)
 - [Web access](#web-access)
 - [Results and resume](#results-and-resume)
@@ -136,6 +137,105 @@ Choose one benchmark per command. WorkBuddy also takes `--subset office`,
 `--subset web`, or `--subset code` on every command after setup. The
 [benchmark guides](docs/BENCHMARKS.md) cover each one's data, domains, and
 grading.
+
+## Agnes Code integration
+
+Harness2 can be run as a built-in, auto-triggering tool inside [Agnes
+Code](https://github.com/AgnesCode) instead of being invoked by hand. The
+integration layer is **independent of the benchmark code** — it lives under
+`mcp_server/`, `recipes/`, `.agents/`, `.Agnes Code/`, and
+`scripts/verify-flowchart-spec.js`, and it drives the eight
+`harness2-*` CLI entry points through an OpenAI-compatible bridge
+([agns_bridge/](agns_bridge/README.md)) so that any project (bench `demo`,
+`ags-demo`, `jb`, `lab`, or `wb`) can be continuously improved without
+leaving the editor.
+
+### The five integration assets
+
+| Asset | Path | Role |
+|---|---|---|
+| MCP server | [`mcp_server/harness2_mcp.py`](mcp_server/harness2_mcp.py) | Zero-dependency stdio JSON-RPC server; exposes 9 `harness2_*` tools wrapping the CLI + 2 `agns_bridge_*` helpers. |
+| Recipe | [`recipes/harness2-any-project.yaml`](recipes/harness2-any-project.yaml) | Repeatable / schedulable `setup → check → run → judge → report` flow with structured `json_schema` output and cross-platform retry. |
+| Custom agent | [`.agents/agents/harness2-dev-agent.md`](.agents/agents/harness2-dev-agent.md) | Reusable role that picks `bench` / `k` / `mode` / `substrate` and enforces the ordering above. |
+| Skill | [`.agents/skills/harness2-develop/SKILL.md`](.agents/skills/harness2-develop/SKILL.md) | On-demand knowledge: bench selection, order of operations, scaling knobs, reading results, wiring into automation. |
+| Hooks plugin | [`.Agnes Code/plugins/harness2-loop/`](.Agnes Code/plugins/harness2-loop/) | Continuous-improvement closed loop: re-runs the recipe on `PostToolUseFailure` (failed build/test) and `AfterShellExecution` (successful `git commit`), with a cooldown and a detached launch. |
+
+### Interactive full-chain flowchart
+
+A **zero-dependency native SVG + vanilla JS** flowchart — data-driven grid
+layout, explicit routing, ISO 5807 / ANSI shapes, cursor-anchored zoom,
+pointer-capture panning, and an in-browser geometry self-audit badge. It also
+carries a structured 9-section plain-language documentation panel (event
+semantics, decision chain, file layout, enable/disable, tuning, logs,
+troubleshooting, role split).
+
+[`harness2-loop-flowchart.html`](.agnes/artifacts/flowcharts/harness2-loop-flowchart.html)
+
+Run the three-layer audit pipeline (requires Node.js):
+
+```bash
+node scripts/verify-flowchart-spec.js .agnes/artifacts/flowcharts/harness2-loop-flowchart.html
+```
+
+### Activation steps
+
+```powershell
+# 1. Enable the harness2_* MCP tools in the current Agnes Code project
+Agnes Code mcp harness2
+
+# 2. One-time smoke test of the hook chain (no model calls, no cost)
+'{"event":"PostToolUseFailure","tool_input":{"command":"cargo test"}}' |
+  python ".Agnes Code/plugins/harness2-loop/scripts/rerun_recipe.py" build-failure
+
+# 3. Make sure config.json points at a real Agnes Code CLI binary
+#    (the default "Agnes Code" is not on PATH on most dev machines).
+
+# 4. Optionally schedule a periodic re-run on top of the event-driven loop
+Agnes Code schedule add --schedule-id harness2-daily `
+  --cron "0 9 * * *" `
+  --recipe-source recipes/harness2-any-project.yaml
+```
+
+To disable the hook loop without deleting files, add the plugin name to
+`disabledPlugins` in the Agnes Code settings (project
+`<project>/.config/Agnes Code/settings.json`, or user
+`~/.config/Agnes Code/settings.json`):
+
+```json
+{ "disabledPlugins": ["harness2-loop"] }
+```
+
+### Continuous-improvement closed loop
+
+```
+change harness / code
+        ↓
+build / test fails          OR          git commit succeeds
+        ↓                                  ↓
+PostToolUseFailure                     AfterShellExecution
+(matcher: ^git\s+commit)
+        └──────────────┬──────────────┘
+                       ↓
+        rerun_recipe.py decision chain
+        (signal? → enabled? → cooldown? → detached launch, exit 0)
+                       ↓
+        Agnes Code run --recipe recipes/harness2-any-project.yaml
+                       ↓
+        setup → check → run → judge → report
+                       ↓
+        runs/<bench>/…/judged.json  (runs_namespace = continuous)
+                       ↓
+        human review → keep k/mode  OR  upgrade to k+1 sequential
+                       ↓
+        next commit / next failure → loop
+```
+
+The loop is **event-driven** (not scheduled): hooks catch build/commit
+failures, `Agnes Code schedule add` covers the time dimension; the two
+complement each other.
+
+See the [handoff doc](handoff.md) for a full status of what has been done,
+what is still pending, and the known caveats.
 
 ## Experiments
 
