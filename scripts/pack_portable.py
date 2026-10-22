@@ -51,6 +51,9 @@ INCLUDE = [
     "multi-agent/adapters/mcp/kiro.mcp.json",
     "multi-agent/adapters/mcp/minimax.mcp.json",
     "multi-agent/adapters/opencode/quickstart.sh",
+    "multi-agent/adapters/common.sh",
+    "multi-agent/adapters/quickstart.sh",
+    "multi-agent/adapters/zero-touch-setup.sh",
     # flowchart visual + audit pipeline + dev docs
     "scripts/verify-flowchart-spec.js",
     "dev_log.md",

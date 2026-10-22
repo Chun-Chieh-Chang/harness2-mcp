@@ -194,11 +194,22 @@ Get-Content "$HOME\.Agnes Code\plugins\harness2-loop\.state\recipe-runs.log" -Ta
 
 自動循環**不綁定任何一家 AI**。三條路（照順序優先）：
 
-> **懶人模式（一次全設定好）**：如果你用 opencode，這一行直接幫你三件全做（git hook + opencode 的 MCP 設定 + 排程）：
+> **懶人模式（推薦）**：一支腳本管理全部 8 家 AI，一次跑完（git hook + 該 AI 的 MCP 設定 + 排程）：
 > ```sh
-> sh multi-agent/adapters/opencode/quickstart.sh /path/to/你的專案
+> bash multi-agent/adapters/quickstart.sh <AI名> /path/to/你的專案
+> # 例：bash multi-agent/adapters/quickstart.sh opencode /path/to/my-app
 > ```
-> 跑完之後就「不用再動了」——之後每次 commit 自動記紙條、自動被撿起重跑。
+> 跑完之後就「不用再動了」。看支援哪些 AI：`bash multi-agent/adapters/quickstart.sh --list`。
+>
+> **極端懶人（一次設定、永遠免動手）**：連上面那行都不用再打：
+> ```sh
+> bash multi-agent/adapters/zero-touch-setup.sh
+> ```
+> 這會把 git hook 裝成「全機預設」（任何 git 專案 commit 都自動記紙條），再掛一支定時排程。
+> 之後你在任何專案、用任何 AI，都自動生效，**永久不用手動**。
+> 想對某個專案關掉：在該專案放一個檔案叫 `HARNESS2_LOOP_OFF` 就好。
+
+不想用懶人腳本，也可以自己分步做：
 
 1. **git 掛勾（最通用）**：任何用 git 的 AI 都生效。裝一次：
    ```sh

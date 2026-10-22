@@ -40,27 +40,68 @@ multi-agent/
 │   │   ├── cline.mcp.json
 │   │   ├── kiro.mcp.json
 │   │   └── minimax.mcp.json
-│   └── opencode/
-│       └── quickstart.sh          # ONE-LINE autopilot for opencode
+│   ├── opencode/
+│   │   └── quickstart.sh          # one-line autopilot for opencode
+│   ├── common.sh                  # shared helpers (find python, paths, json merge)
+│   ├── quickstart.sh              # ONE script for all 8 agents (dispatcher)
+│   └── zero-touch-setup.sh        # global install: never run quickstart again
 └── README.md                       # this file
 ```
 
-## One-line autopilot (no manual steps)
+## Autopilot (no manual steps)
 
-If you don't want to run the three layers by hand, opencode ships a
-single setup script that does **all of them at once** (git hook + MCP
-config + optional 60-minute scheduler):
+### One-line per agent — `quickstart.sh` dispatcher
+
+One script covers **all 8 agents** (git hook + that agent's MCP config +
+60-minute scheduler). No more per-agent variants to maintain:
 
 ```sh
-sh multi-agent/adapters/opencode/quickstart.sh /path/to/your-project
+# list supported agents + where each MCP file lands
+bash multi-agent/adapters/quickstart.sh --list
+
+# set up a specific agent for a specific project
+bash multi-agent/adapters/quickstart.sh opencode /path/to/your-project
+bash multi-agent/adapters/quickstart.sh cline    /path/to/another-project
 ```
 
-After that single command, every `git commit` writes the pending flag
-automatically; opencode can drain it in-session via `harness2_requeue`,
-and the scheduler drains it off-session. **Nothing more to type.**
+Each run is **idempotent** (re-running never duplicates) and **non-destructive**
+(existing JSON is merged, not clobbered). After one run, every commit in that
+project auto-writes the flag; the agent drains in-session, the scheduler
+drains off-session. **Nothing else to type.**
 
-(Other agents still use the three layers above — quickstart is currently
-opencode-specific; the same pattern generalizes easily.)
+| Agent | MCP file written | JSON shape |
+|---|---|---|
+| opencode | `<project>/opencode.json` | `mcp.harness2` (type:local + command array) |
+| cline / trae / qoder / kiro / antigravity / minimax | `<project>/.<agent>/mcp.json` | `mcpServers.harness2` |
+| workbuddy | `~/.workbuddy/mcp.json` | `mcpServers.harness2` (no documented project path) |
+
+### Truly zero-touch — `zero-touch-setup.sh` (run ONCE, then never)
+
+If you want **no per-project, per-agent setup at all**, install the global
+version:
+
+```sh
+bash multi-agent/adapters/zero-touch-setup.sh
+```
+
+What that single command does, permanently:
+
+1. **Git global hook** — `core.hooksTemplateDir` points to a local
+   template dir; **every `git init` / every repo you touch** inherits a
+   `post-commit` that writes the flag. No per-project install.
+2. **One scheduler** — a 60-min cron / Task Scheduler job drains the flag
+   off-session, forever.
+3. **Any MCP agent** — in-session drains via `harness2_requeue` as before.
+
+Result: you **never run a quickstart again** — commit anywhere, it auto-triggers,
+the scheduler auto-drains.
+
+**Blast radius**: all git repos on this machine get the hook. To opt a
+specific project out: `touch <project>/HARNESS2_LOOP_OFF`. To undo
+everything: `bash zero-touch-setup.sh --uninstall`.
+
+> **Recommended default**: start with the dispatcher (`quickstart.sh`).
+> Use zero-touch only when you truly want it machine-wide.
 
 ## Per-agent quickstart
 
