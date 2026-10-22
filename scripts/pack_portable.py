@@ -54,6 +54,7 @@ INCLUDE = [
     "scripts/verify-flowchart-spec.js",
     "dev_log.md",
     "handoff.md",
+    "USER_GUIDE.md",
 ]
 
 # zero-dependency proof: the Python files must import only stdlib modules.
