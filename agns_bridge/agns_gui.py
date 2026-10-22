@@ -66,7 +66,7 @@ def _run_demo(cfg: dict) -> dict:
     if use_cli:
         if not cli:
             return {"ok": False,
-                    "output": "没有填 AGNES_CLI。请在输入框填指令（例：python agnes_bridge\\fake_agnes_cli_example.py）"
+                    "output": "没有填 AGNES_CLI。請在输入框填指令（例：python agnes_bridge\\fake_agnes_cli_example.py）"
                               "或改按「①-A 内置 worker」。"}
         env["AGNES_CLI"] = cli
     cmd = [sys.executable, "-m", "harness2.cli.agns_demo",
@@ -76,13 +76,13 @@ def _run_demo(cfg: dict) -> dict:
         proc = subprocess.run(cmd, cwd=ROOT, env=env,
                               capture_output=True, text=True, timeout=900)
     except subprocess.TimeoutExpired:
-        return {"ok": False, "output": "超时：900 秒内没跑完。请减小 k 再试。"}
+        return {"ok": False, "output": "超時：900 秒内没跑完。請减小 k 再試。"}
     out = (proc.stdout or "").strip()
     if proc.stderr and proc.stderr.strip():
         out += "\n" + proc.stderr.strip()
     return {"ok": proc.returncode == 0,
             "output": out[-4000:] or "(no output)",
-            "note": f"耗时 {time.time() - t0:.0f} 秒"}
+            "note": f"耗時 {time.time() - t0:.0f} 秒"}
 
 
 
@@ -145,20 +145,20 @@ def _start_bridge(cfg: dict) -> dict:
     ns = _load_bridge_ns()
     if not ns:
         return {"ok": False,
-                "output": "无法载入 agnes_openai_proxy.py（请确认 agnes_bridge 目录完整）。"}
+                "output": "无法载入 agnes_openai_proxy.py（請确認 agnes_bridge 目录完整）。"}
     try:
         srv = http.server.ThreadingHTTPServer((ns["HOST"], ns["PORT"]), ns["Handler"])
     except OSError as exc:
         return {"ok": False,
-                "output": f"Bridge 启动失败：{exc}（请确认 AGNES_PROXY_PORT 未被占用）"}
+                "output": f"Bridge 啟動失败：{exc}（請确認 AGNES_PROXY_PORT 未被占用）"}
     _STATE["bridge_srv"] = srv
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return {"ok": True,
-            "output": (f"Bridge 已启动：http://{ns['HOST']}:{ns['PORT']}/v1\n"
-                       f"上游 Agnes 端点：{ns.get('API_URL') or '(未设定)'}"
+            "output": (f"Bridge 已啟動：http://{ns['HOST']}:{ns['PORT']}/v1\n"
+                       f"上游 Agnes 端點：{ns.get('API_URL') or '(未设定)'}"
                        f"（auth: {ns.get('AUTH_HEADER', 'bearer')}），"
                        f"model: {ns.get('DEFAULT_MODEL', '(未设定)')}"),
-            "note": "现在可以按「测试 Agnes 连线」了"}
+            "note": "现在可以按「测試 Agnes 連线」了"}
 
 
 def _probe_bridge() -> str:
@@ -193,7 +193,7 @@ def _test_link(cfg: dict) -> dict:
     base = _probe_bridge()
     if not base:
         return {"ok": False,
-                "output": "Bridge 还没在跑。请先按「②-A 启动 Bridge」，或另开终端跑 "
+                "output": "Bridge 還没在跑。請先按「②-A 啟動 Bridge」，或另開终端跑 "
                           "python -m agnes_bridge.agnes_openai_proxy 再按本钮。"}
     payload = {
         "model": os.environ.get("AGNES_MODEL", "agnes-3.0-flash"),
@@ -212,24 +212,24 @@ def _test_link(cfg: dict) -> dict:
                 d.get("choices", [{}])[0].get("message", {}).get("content", ""),
                 ensure_ascii=False)
             return {"ok": True,
-                    "output": (f"连线成功！Agnes 模型回覆：{content}\n"
+                    "output": (f"連线成功！Agnes 模型回覆：{content}\n"
                                f"用量：{json.dumps(d.get('usage', {}))}"),
                     "note": f"Harness^2 现在可以透过 {base}/v1 调用 Agnes"}
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")
         hint = ""
         if exc.code == 401:
-            hint = "\n→ 401：API key 或 AGNES_AUTH_HEADER 不对，请检查 .agns_bridge.env。"
+            hint = "\n→ 401：API key 或 AGNES_AUTH_HEADER 不对，請检查 .agns_bridge.env。"
         elif exc.code == 503:
             hint = "\n→ 503：AGNES_API_URL 未设定。"
-        return {"ok": False, "output": f"Agnes 端点回覆 HTTP {exc.code}：{body[:300]}{hint}"}
+        return {"ok": False, "output": f"Agnes 端點回覆 HTTP {exc.code}：{body[:300]}{hint}"}
     except Exception as exc:
-        return {"ok": False, "output": f"连不到 bridge（{base}）：{type(exc).__name__}: {exc}"}
+        return {"ok": False, "output": f"連不到 bridge（{base}）：{type(exc).__name__}: {exc}"}
 
 
 def _show_results(cfg: dict) -> dict:
     if not RESULTS_JSON.is_file():
-        return {"ok": False, "output": "还没有结果。请先按「① 跑 Demo」。"}
+        return {"ok": False, "output": "還没有结果。請先按「① 跑 Demo」。"}
     d = json.loads(RESULTS_JSON.read_text(encoding="utf-8"))
     lines = [f"完成 {d.get('done')} 题，失败 {d.get('failed')} 题。"]
     if d.get("substrate"):
@@ -248,9 +248,9 @@ def _show_results(cfg: dict) -> dict:
 def _open_folder(cfg: dict) -> dict:
     folder = ROOT / "runs" / "agns_demo"
     if not folder.exists():
-        return {"ok": False, "output": "还没有结果资料夹。请先跑 Demo。"}
+        return {"ok": False, "output": "還没有结果资料夹。請先跑 Demo。"}
     subprocess.Popen(["explorer", str(folder)])
-    return {"ok": True, "output": "已用资源管理器打开 runs\\agns_demo"}
+    return {"ok": True, "output": "已用资源管理器打開 runs\\agns_demo"}
 
 
 _ACTIONS = {
@@ -287,8 +287,8 @@ HTML = r"""<!doctype html>
 <div class="sub">不需要打任何指令。照 ① → ② → ③ 按即可；结果会直接显示在按钮下方。</div>
 
 <div class="card">
- <b>① 跑 Demo（不需要 Agnes API，先用它确认整条线通）</b><br>
- <small>「内建 worker」＝ 无需任何 Agnes 设定即可跑通；「AGNES_CLI」＝ 用你自己的 Agnes 指令来跑（选 ①-B 才用到）。</small>
+ <b>① 跑 Demo（不需要 Agnes API，先用它确認整條线通）</b><br>
+ <small>「内建 worker」＝ 无需任何 Agnes 设定即可跑通；「AGNES_CLI」＝ 用你自己的 Agnes 指令來跑（选 ①-B 才用到）。</small>
  <div style="margin-top:10px">
    题数 k：<input id="k" value="1">　
    AGNES_CLI 指令：<input id="cli" placeholder="例：python agnes_bridge\fake_agnes_cli_example.py（或你自己的 agnes 指令）" style="width:62%">
@@ -302,10 +302,10 @@ HTML = r"""<!doctype html>
 
 <div class="card">
  <b>② 接你的 Agnes 模型（Bridge）</b><br>
- <small>Bridge 是把 Harness² 的模型呼叫转给你 Agnes 端点的转接器。端点资料（URL / key / model）已经放在 .agns_bridge.env，不用在这填。</small>
+ <small>Bridge 是把 Harness² 的模型呼叫轉给你 Agnes 端點的轉接器。端點资料（URL / key / model）已经放在 .agns_bridge.env，不用在这填。</small>
  <div style="margin-top:6px">
-   <button onclick="call('start_bridge')">②-A 启动 Bridge</button>
-   <button onclick="call('test_link')">②-B 测试 Agnes 连线</button>
+   <button onclick="call('start_bridge')">②-A 啟動 Bridge</button>
+   <button onclick="call('test_link')">②-B 测試 Agnes 連线</button>
  </div>
  <pre id="o_bridge"></pre>
 </div>
@@ -314,7 +314,7 @@ HTML = r"""<!doctype html>
  <b>③ 看结果</b>
  <div style="margin-top:6px">
    <button onclick="call('show_results')">③-A 显示最新 Demo 结果</button>
-   <button onclick="call('open_folder')">③-B 用资源管理器打开结果资料夹</button>
+   <button onclick="call('open_folder')">③-B 用资源管理器打開结果资料夹</button>
  </div>
  <pre id="o_results"></pre>
 </div>
@@ -334,7 +334,7 @@ async function call(name, payload){
     const d = await r.json();
     el.textContent = (d.output||'') + (d.note ? '\n（'+d.note+'）' : '');
     el.className = d.ok ? 'ok' : 'bad';
-  } catch(e) { el.textContent = '请求失败：'+e; el.className='bad'; }
+  } catch(e) { el.textContent = '請求失败：'+e; el.className='bad'; }
   btns.forEach(b=>b.classList.remove('busy'));
 }
 function runDemo(useCli){

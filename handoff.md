@@ -28,7 +28,7 @@ harness2 已從「手動 CLI 框架」升級為「**Agnes Code 內建、可自�
 | 7 | 互動流程圖 | `.agnes/artifacts/flowcharts/harness2-loop-flowchart.html` | ✅ 完成 | 依 flowchart-spec：零依賴原生 SVG + vanilla JS、資料驅動格點、ISO 5807 符號、顯式路由、互動四件套、內建幾何自審計徽章；**已納入 9 節白話結構化說明側欄** |
 | 8 | 三層審計管線 | `scripts/verify-flowchart-spec.js` | ✅ 落檔 | 依 spec 要求存在；本機無 Node 未執行（誠實標註），已在有 Node 環境跑過才算 PASS |
 | 9 | `.gitignore` | `.gitignore` | ✅ 完成 | 排除 `runs/`、`.state/`、`.agnes/cache|work|artifacts/`、`.agns_bridge.env` 機密、`__pycache__/` |
-| 10 | 初始化 git repo | `.git/` | ✅ 完成 | `git init` + 首個整合 commit `d70e879`；中途清掉一個 PowerShell 意外產出的 0 字节 `$null` 檔案 |
+| 10 | 初始化 git repo | `.git/` | ✅ 完成 | `git init` + 首個整合 commit `d70e879`；中途清掉一個 PowerShell 意外產出的 0 字節 `$null` 檔案 |
 | 11 | README § Agnes Code integration | `README.md` | ✅ 完成 | 含 5 資產對照表、flowchart 連結、activation 步驟、閉環 ASCII 圖、schedule 互補說明 |
 | 12 | **多 agent 適配包** | `multi-agent/` | ✅ 完成 | 讓閉環套在**任何** agent（opencode / Antigravity / WorkBuddy / Qoder / Trae / Cline / Kiro / MiniMax）上。三層：① 通用 git `post-commit` 觸發器（`adapters/git/`）；② 8 份 per-agent `mcpServers` 片段（`adapters/mcp/`，JSON 全數校驗通過）；③ 排程 drain（`drain_requeue.py`）＋手動 build 失敗一鍵 `adapters/build-failure/`。見 `multi-agent/README.md` |
 
@@ -62,7 +62,7 @@ harness2 已從「手動 CLI 框架」升級為「**Agnes Code 內建、可自�
 - **裸 `"*"` matcher 在 Agnes 是非法 regex**：整條規則會被靜默跳過，所以 build-failure 規則故意不寫 matcher、改在腳本內用 `config.build_patterns` 過濾。
 - **`PostToolUseFailure` 想 block 工具調用需印 `{"decision":"block"}`**：本插件是純觀測（`exit 0`），block 政策要另外用 `PreToolUse` 寫規則。
 - **`score=None` 是 judge 故障，不是 0 分**：讀 `judged.json` 時不要誤判為退步。
-- **harness2 本體不變**：整合層只驱动既有 CLI，不修改 8 個 CLI entry point 或 8 個 harness 組件。
+- **harness2 本體不變**：整合層只驱動既有 CLI，不修改 8 個 CLI entry point 或 8 個 harness 組件。
 
 ---
 

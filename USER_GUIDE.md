@@ -106,7 +106,7 @@ harness2-demo --output runs/demo --k 1
 |---|---|---|
 | `harness2-setup <卷名>` | **準備**：把測驗卷和相關資料備齊（只做一次） | 否 |
 | `harness2-check --bench <卷名>` | **預檢**：快速確認「真的能跑」再動手 | 否 |
-| `harness2 --bench <卷名>` | **真正的測驗＋改良**（最花时间、最重要的那步） | 用真卷時**會** |
+| `harness2 --bench <卷名>` | **真正的測驗＋改良**（最花時间、最重要的那步） | 用真卷時**會** |
 | `harness2-judge --bench <卷名>` | **評分**：把測出來的成績打分 | 視卷而定 |
 | `harness2-report --bench <卷名>` | **看報告**：採納了哪個版本的手冊、下一步建議 | 否 |
 | `harness2-demo` | **免費練習題**：不用帳號不花錢，專給初學者確認安裝 | 否 |
@@ -133,7 +133,7 @@ MCP 工具包讓 AI 助手「動嘴」就能做上面那些事（不用你手打
 | `harness2_run` | 跑測驗＋改良（真正的那步） |
 | `harness2_judge` / `harness2_report` | 評分、看報告 |
 | `harness2_demo` / `harness2_agns_demo` | 免費練習題 |
-| **`harness2_requeue`** | **撿起「待辦紙條」並照單重跑**（自動循環的关键） |
+| **`harness2_requeue`** | **撿起「待辦紙條」並照單重跑**（自動循環的關键） |
 | `agnes_bridge_status` / `agnes_bridge_start` | 進階：外部模型服務的狀態／啟動 |
 
 用法：在 Agnes Code 對話裡直接說「用 harness2-demo 跑一下，先空跑」即可；

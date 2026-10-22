@@ -126,4 +126,20 @@ Each entry: **date · what · why · verification**.
   files (`AGNES_API_KEY` hits are placeholders/env-var reads only); large
   files are intentional assets; credential `.env` is gitignored.
 
+---
+
+## 2026-10-22 (final) — language discipline + cleanup
+
+- **Global rule hard-coded**: `~/.config/Agnes Code/.agneshints` (user-wide,
+  auto-loaded into every session's system prompt) now bans simplified-Chinese
+  characters in project tooling / system files / code / docs; conversation
+  language is explicitly left unconstrained.
+- **Repo-tracked rule**: `.agneshints` at repo root (versioned, so every
+  clone inherits it; project-level wins over global on conflict).
+- **Simplified->Traditional cleanup** of 3 files that had drifted:
+  `handoff.md`, `USER_GUIDE.md`, `agns_bridge/agns_gui.py` (UI string
+  literals only; `ast.parse` re-verified).
+- The `.agneshints` files intentionally *list* the banned simplified chars as
+  samples — that is the rule's definition, not a violation.
+
 *This file is appended to with each major change. Keep newest last.*
