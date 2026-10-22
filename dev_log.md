@@ -102,4 +102,28 @@ Each entry: **date · what · why · verification**.
 
 ---
 
+---
+
+## 2026-10-22 (later) — audit, cleanup, doc sync, portable packaging
+
+- **Full inventory + cleanup (zero-regression)**:
+  - No dead code in the integration layer (every file is referenced).
+  - Removed an accidentally-tracked `.agnes/uploads/*.png` screenshot;
+    added `.agnes/uploads/` to `.gitignore` (runtime/privacy, not source).
+- **Doc sync to "no headless CLI / flag protocol" reality** (100% accurate):
+  - `recipes/…yaml` header, README activation, handoff P2 + quick commands,
+    plugin-README mermaid, and the MCP docstring (added the missing
+    `harness2_requeue`, now 10 tools) all updated; removed the 4 residual
+    `Agnes Code <cli>` assumptions (SSOT/MECE).
+- **Restore baseline**: sandbox-verified (4-py + 13-json + flowchart HTML
+  structural PASS; functional smoke of the flag protocol PASS) before the
+  atomic audit commit.
+- **Portable zero-dependency package** (#5): `scripts/pack_portable.py`
+  builds `.agnes/artifacts/harness2-loop-portable.zip` (27 files, ~48 KB,
+  `zero_dep: True`, SHA-256 manifest). Re-runnable/idempotent. Excludes
+  runtime `.state/`, caches, and machine-local `.env`.
+- **Security/privacy inventory** (#6, pre-push): no real secrets in tracked
+  files (`AGNES_API_KEY` hits are placeholders/env-var reads only); large
+  files are intentional assets; credential `.env` is gitignored.
+
 *This file is appended to with each major change. Keep newest last.*
