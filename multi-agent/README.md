@@ -43,8 +43,10 @@ multi-agent/
 │   ├── opencode/
 │   │   └── quickstart.sh          # one-line autopilot for opencode
 │   ├── common.sh                  # shared helpers (find python, paths, json merge)
-│   ├── quickstart.sh              # ONE script for all 8 agents (dispatcher)
-│   └── zero-touch-setup.sh        # global install: never run quickstart again
+│   ├── quickstart.sh              # ONE dispatcher for all 8 agents (sh)
+│   ├── zero-touch-setup.py        # global installer — the SSOT (cross-platform Python)
+│   ├── zero-touch-setup.cmd       # double-click launcher (Windows, no bash needed)
+│   └── zero-touch-setup.sh        # thin wrapper: prefers Python, falls back to sh
 └── README.md                       # this file
 ```
 
@@ -75,33 +77,45 @@ drains off-session. **Nothing else to type.**
 | cline / trae / qoder / kiro / antigravity / minimax | `<project>/.<agent>/mcp.json` | `mcpServers.harness2` |
 | workbuddy | `~/.workbuddy/mcp.json` | `mcpServers.harness2` (no documented project path) |
 
-### Truly zero-touch — `zero-touch-setup.sh` (run ONCE, then never)
+### Truly zero-touch — `zero-touch-setup.py` (run ONCE, then never)
 
 If you want **no per-project, per-agent setup at all**, install the global
-version:
+version. The installer is **cross-platform Python** (no bash required), so on
+Windows you do *not* need git-bash on your PATH:
 
-```sh
-bash multi-agent/adapters/zero-touch-setup.sh
+```powershell
+# Windows — double-click, or run:
+.\multi-agent\adapters\zero-touch-setup.cmd
+# or any OS, from the repo:
+python multi-agent/adapters/zero-touch-setup.py
 ```
 
 What that single command does, permanently:
 
-1. **Git global hook** — `core.hooksTemplateDir` points to a local
-   template dir; **every `git init` / every repo you touch** inherits a
-   `post-commit` that writes the flag. No per-project install.
-2. **One scheduler** — a 60-min cron / Task Scheduler job drains the flag
-   off-session, forever.
+1. **Git global hook** — builds `~/.harness2-loop-template` (git's built-in
+   template *plus* our `hooks/post-commit`, so no default `.sample` hook is
+   lost) and sets `git config --global init.templatedir` to it. Every new
+   `git init` then copies `post-commit` into `.git/hooks/`. No per-project
+   install, no bash needed.
+2. **One scheduler** — a 60-min cron / Task Scheduler job runs
+   `drain_requeue.py` (pure Python) off-session, forever.
 3. **Any MCP agent** — in-session drains via `harness2_requeue` as before.
 
-Result: you **never run a quickstart again** — commit anywhere, it auto-triggers,
-the scheduler auto-drains.
+Result: you **never run a quickstart again** — commit anywhere, it
+auto-triggers, the scheduler auto-drains.
 
-**Blast radius**: all git repos on this machine get the hook. To opt a
-specific project out: `touch <project>/HARNESS2_LOOP_OFF`. To undo
-everything: `bash zero-touch-setup.sh --uninstall`.
+**Blast radius**: every *new* git repo on this machine gets the hook. To
+opt a specific project out: create `<project>/HARNESS2_LOOP_OFF`. To undo
+everything: `python multi-agent/adapters/zero-touch-setup.py --uninstall`.
 
-> **Recommended default**: start with the dispatcher (`quickstart.sh`).
-> Use zero-touch only when you truly want it machine-wide.
+> **Note for pre-existing repos** (created before the install, like this one):
+> run `git init` inheritance only covers *new* repos. For an existing repo,
+> copy the hook once:
+> `copy ~\.harness2-loop-template\hooks\post-commit <repo>\.git\hooks\post-commit`.
+>
+> **Recommended default**: start with the per-project dispatcher
+> (`quickstart.sh` / `.cmd`). Use zero-touch only when you truly want it
+> machine-wide.
 
 ## Per-agent quickstart
 

@@ -142,4 +142,21 @@ Each entry: **date · what · why · verification**.
 - The `.agneshints` files intentionally *list* the banned simplified chars as
   samples — that is the rule's definition, not a violation.
 
+---
+
+## 2026-10-22 (final) — zero-touch installer fixed to actually work
+
+- **Bug found**: the first zero-touch installer set a non-existent git key
+  (`core.hooksTemplateDir`) and used the wrong template layout, so `git init`
+  did NOT inherit the hook. It looked installed but was not working.
+- **Fix**: the SSOT is now `zero-touch-setup.py` (cross-platform, stdlib-only):
+  it builds `~/.harness2-loop-template` (git's built-in template + our
+  `hooks/post-commit`, so no default `.sample` hook is lost) and sets the REAL
+  key `init.templatedir`; a double-click `zero-touch-setup.cmd` and a thin
+  `zero-touch-setup.sh` wrapper (prefers Python, avoids the Windows "no bash
+  on PATH" problem) wrap it.
+- **Verified on git 2.53 / Windows**: a fresh `git init` now inherits
+  `post-commit`, the default samples are kept, and a commit writes a valid
+  flag. The hook was also copied into this (pre-existing) repo's .git/hooks.
+
 *This file is appended to with each major change. Keep newest last.*

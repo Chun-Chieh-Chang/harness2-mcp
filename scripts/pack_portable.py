@@ -53,6 +53,8 @@ INCLUDE = [
     "multi-agent/adapters/opencode/quickstart.sh",
     "multi-agent/adapters/common.sh",
     "multi-agent/adapters/quickstart.sh",
+    "multi-agent/adapters/zero-touch-setup.py",
+    "multi-agent/adapters/zero-touch-setup.cmd",
     "multi-agent/adapters/zero-touch-setup.sh",
     # flowchart visual + audit pipeline + dev docs
     "scripts/verify-flowchart-spec.js",
