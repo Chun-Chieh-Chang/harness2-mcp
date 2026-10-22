@@ -58,6 +58,7 @@ https://github.com/user-attachments/assets/76b10548-b14b-4c8f-9aa5-a93662df4d56
 - [Install](#install)
 - [Run a benchmark](#run-a-benchmark)
 - [Agnes Code integration](#agnes-code-integration)
+- [Multi-agent adapters](#multi-agent-adapters)
 - [Experiments](#experiments)
 - [Web access](#web-access)
 - [Results and resume](#results-and-resume)
@@ -252,6 +253,55 @@ duplicated.
 
 See the [handoff doc](handoff.md) for a full status of what has been done,
 what is still pending, and the known caveats.
+
+## Multi-agent adapters
+
+The closed loop is **not tied to Agnes Code**. It is a *flag + two drain
+paths* design, which can sit on top of **any coding agent**. The
+`multi-agent/` tree ships three agent-agnostic layers plus per-agent MCP
+fragments:
+
+| Layer | Trigger | Works on |
+|---|---|---|
+| **1 · git hook** | `git commit` in any project | every agent that uses git (all of them) |
+| **2 · MCP tool** | agent calls `harness2_requeue` in-session | any agent with MCP support |
+| **3 · scheduler** | cron / Task Scheduler | any OS, agent-agnostic |
+
+Layer 1 is the key: **git hooks are agent-agnostic** — install once per
+project and every commit writes the flag; the agent never needs to "support
+harness2-loop".
+
+```
+multi-agent/
+├── README.md                 # mapping + per-agent quickstart + caveats
+├── adapters/git/
+│   ├── post-commit.sh         # writes pending_re.json on every commit
+│   └── install.sh            # copies the hook into <project>/.git/hooks/
+├── adapters/build-failure/
+│   └── record-build-failure.sh  # manual one-liner for failing builds
+└── adapters/mcp/             # one mcpServers block per agent
+    ├── opencode.mcp.json     antigravity.mcp.json  workbuddy.mcp.json
+    ├── qoder.mcp.json        trae.mcp.json          cline.mcp.json
+    ├── kiro.mcp.json         minimax.mcp.json
+```
+
+Quickstart:
+
+```sh
+# 1) install the universal git trigger into any project
+sh multi-agent/adapters/git/install.sh /path/to/your-project
+
+# 2) (optional) catch a failing build manually
+(cargo test || sh multi-agent/adapters/build-failure/record-build-failure.sh cargo test)
+
+# 3) (optional) add your agent's MCP block from multi-agent/adapters/mcp/
+```
+
+Works under **opencode, Antigravity IDE, WorkBuddy, Qoder, Trae, Cline,
+Kiro, and MiniMax Code** (and by extension Claude / Cursor / others). See
+[`multi-agent/README.md`](multi-agent/README.md) for the per-agent config
+locations and honest caveats (per-agent MCP key names change; WorkBuddy has
+no documented MCP surface, so prefer layers 1 + 3).
 
 ## Experiments
 

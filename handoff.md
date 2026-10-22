@@ -30,6 +30,7 @@ harness2 已從「手動 CLI 框架」升級為「**Agnes Code 內建、可自�
 | 9 | `.gitignore` | `.gitignore` | ✅ 完成 | 排除 `runs/`、`.state/`、`.agnes/cache|work|artifacts/`、`.agns_bridge.env` 機密、`__pycache__/` |
 | 10 | 初始化 git repo | `.git/` | ✅ 完成 | `git init` + 首個整合 commit `d70e879`；中途清掉一個 PowerShell 意外產出的 0 字节 `$null` 檔案 |
 | 11 | README § Agnes Code integration | `README.md` | ✅ 完成 | 含 5 資產對照表、flowchart 連結、activation 步驟、閉環 ASCII 圖、schedule 互補說明 |
+| 12 | **多 agent 適配包** | `multi-agent/` | ✅ 完成 | 讓閉環套在**任何** agent（opencode / Antigravity / WorkBuddy / Qoder / Trae / Cline / Kiro / MiniMax）上。三層：① 通用 git `post-commit` 觸發器（`adapters/git/`）；② 8 份 per-agent `mcpServers` 片段（`adapters/mcp/`，JSON 全數校驗通過）；③ 排程 drain（`drain_requeue.py`）＋手動 build 失敗一鍵 `adapters/build-failure/`。見 `multi-agent/README.md` |
 
 ### 整合資產之間的關係（一張話）
 - **MCP server**＝手動入口：session 內用 `harness2_*` 工具即時調 CLI。
@@ -50,7 +51,7 @@ harness2 已從「手動 CLI 框架」升級為「**Agnes Code 內建、可自�
 | P2 | recipe 未機器解析（PyYAML 未安裝） | Python 3.15 無 C++ 工具鏈，`pip install pyyaml` 失敗 | 在有 PyYAML 的環境跑一次 `Agnes Code run --recipe recipes/harness2-any-project.yaml --params bench=demo --dry-run=true` 確認 schema；或改 `uv pip install pyyaml` |
 | P3 | `scripts/verify-flowchart-spec.js` 未在本機跑過（Node 缺失） | 本機無 Node.js | 裝 Node 20+ 後 `node scripts/verify-flowchart-spec.js .agnes/artifacts/flowcharts/harness2-loop-flowchart.html`，全綠才算 LAYER 1/2/3 全 PASS |
 | P4 | `.agnes/cache/docs*` 內是外部文件快照，未 git 追蹤 | `.gitignore` 已排除 | 若日後要分享文件，改把 `docs/` 內文件 copy 進本 repo 並移除 cache 路徑引用 |
-| P5 | 若要把 hooks 做成「跨專案」而非「本專案」 | 目前插件放 `<project>/.Agnes Code/plugins/`，只在此 repo 生效 | 拷貝到 `~/.Agnes Code/plugins/harness2-loop/` 並調整 `config.json` 的 `repo_root` 指向目標專案 |
+| P5 | ~~若要把 hooks 做成「跨專案」而非「本專案」~~ | **已解決**：全域插件已裝到 `~/.Agnes Code/plugins/harness2-loop/`（任何專案開 Agnes 都自動載入，MCP 端雙路徑讀全域/專案旗標）；且 `multi-agent/` 提供 agent-agnostic 的 git `post-commit` 觸發器，任何用 git 的專案 commit 即觸發 | 無（待辦清掉）；跨 agent 細節見 `multi-agent/README.md` |
 
 ---
 
@@ -81,19 +82,24 @@ Agnes Code mcp harness2
 # 3) 看判定日誌
 Get-Content ".Agnes Code\plugins\harness2-loop\.state\harness2-loop.log" -Tail 10
 
-# 4) 看背景 recipe 輸出
+# 4) 看 drain 路徑實際跑 recipe 的輸出
 Get-Content ".Agnes Code\plugins\harness2-loop\.state\recipe-runs.log" -Tail 20
+
+# 5) 跨 agent 通用觸發器：把 git post-commit hook 裝到任何專案
+sh multi-agent/adapters/git/install.sh /path/to/your-project
 ```
 
 ---
 
-## 6. 未做的（明講）
+## 6. 未做的 / 需注意（明講）
 
+- 沒有改動 `harness2/` 內 Python 包（純整合層）。
+- `.Agnes Code/plugins/harness2-loop/` 已綁定專案；**全域複用**靠 `~/.Agnes Code/plugins/`（已裝）＋ `multi-agent/adapters/git/`（agent-agnostic）。
+- **multi-agent 的 8 份 MCP 片段是「起點」**：各 agent 的 MCP key 名／設定檔路徑會隨版本變，正式使用前請對該 agent 現行文件確認一次（`multi-agent/README.md` 有逐個標明）。
+- **WorkBuddy 無文件化 MCP 路徑**：`workbuddy.mcp.json` 只是備用；可靠路徑是 git hook（層 1）＋排程 drain（層 3）。
 - 沒有把 flowchart HTML 註冊為「多份」artifact；只用一個 `dedupe_key=harness2-loop-flowchart` 原地更新。
 - 沒有在 README 放 Mermaid 靜態版（HTML 已是單一交付物；Mermaid 在插件 README 內）。
-- 沒有改動 `harness2/` 內 Python 包（純整合層）。
-- 沒有跑 `git remote add`（本機 repo，無遠端需求）。
-- 沒有把 `.Agnes Code/plugins/harness2-loop/` 做成可跨專案複用；目前綁定本專案。
+- 遠端已 push 到 `https://github.com/Chun-Chieh-Chang/harness2-mcp`（见 dev_log.md）。
 
 ---
 
