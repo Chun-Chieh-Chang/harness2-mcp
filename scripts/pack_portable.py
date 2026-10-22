@@ -77,6 +77,8 @@ def _stdlib_set():
             "dataclasses", "enum", "abc", "io", "tempfile", "base64", "copy",
             "math", "random", "string", "textwrap", "unicodedata", "weakref",
             "signal", "struct", "glob", "fnmatch", "warnings", "weakref",
+            "platform", "tempfile", "uuid", "configparser", "csv", "logging",
+            "concurrent", "asyncio", "multiprocessing",
         }
 
 STDLIB = _stdlib_set() | {"__future__"}
