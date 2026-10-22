@@ -14,7 +14,7 @@
 5. [八個基本指令（白話版）](#5)
 6. [讓 AI 助手代勞：十個工具](#6)
 7. [自動循環：harness2-loop（核心功能）](#7)
-8. [換別的 AI 工具也能用](#8)
+8. [換別的 AI 工具也能用（含懒人一鍵腳本＋全機零動手）](#8)
 9. [搬到另一台電腦](#9)
 10. [常見問題](#10)
 11. [注意事項](#11)
@@ -47,6 +47,7 @@ harness2 是一套**「讓 AI 助手變聰明」的訓練工具**。
 | 知識手冊（skill） | 教 AI 怎麼挑測驗、怎麼看結果、怎麼接自動化 | `.agents/skills/` |
 | 自動循環插件 | 測試失敗／commit 時自動記「待辦紙條」 | `.Agnes Code/plugins/harness2-loop/` |
 | 多 AI 適配包 | 讓你把自動循環接到其他 AI 工具（Cline、Kiro…） | `multi-agent/` |
+| 傻瓜一鍵腳本 | 一次全設定好（懶人）；或全機永久免動手（極端懶人） | `multi-agent/adapters/quickstart.sh`、`zero-touch-setup.sh` |
 | 互動流程圖 | 一張可放大拖曳的圖＋完整白話說明（瀏覽器開啟） | `.agnes/artifacts/flowcharts/` |
 | 可攜式包裝 | 一把搬走整套的 zip | `scripts/pack_portable.py` 產生 |
 
@@ -150,6 +151,8 @@ MCP 工具包讓 AI 助手「動嘴」就能做上面那些事（不用你手打
 
 其他所有動作（看文件、改檔案）都不會觸發它。
 
+> 補充：如果你用「極端懶人」的 `zero-touch-setup.sh`，commit 這條是**全機自動**記紙條的（不用裝任何掛勾）；在特定專案放一個 `HARNESS2_LOOP_OFF` 檔案就能對該專案關掉。
+
 ### 發生後做什麼（白話 5 步）
 
 1. **記一張待辦紙條**（`pending_re.json`）：寫上「什麼事、該用哪些參數重跑」
@@ -190,7 +193,7 @@ Get-Content "$HOME\.Agnes Code\plugins\harness2-loop\.state\recipe-runs.log" -Ta
 
 ---
 
-## 8. 換別的 AI 工具也能用
+## 8. 換別的 AI 工具也能用（含懒人一鍵腳本＋全機零動手）
 
 自動循環**不綁定任何一家 AI**。三條路（照順序優先）：
 
@@ -237,7 +240,7 @@ Get-Content "$HOME\.Agnes Code\plugins\harness2-loop\.state\recipe-runs.log" -Ta
 ```powershell
 # 在本機產出打包（會自動檢查確實沒有第三方套件）
 python scripts/pack_portable.py
-# 產出：.agnes\artifacts\harness2-loop-portable.zip（約 48KB）
+# 產出：.agnes\artifacts\harness2-loop-portable.zip（約 60–70KB，含 30+ 檔）
 ```
 
 把 zip 帶到新機器，解壓後：
@@ -245,6 +248,9 @@ python scripts/pack_portable.py
 1. 裝好 Python 3.12 與 harness2 本體（`pip install -e .`）
 2. 把解出來的 `.Agnes Code/plugins/harness2-loop/` 放到新機器的全域插件位置（或放進該專案）
 3. 開 Agnes Code → 自動載入 → 完
+4. （想接其他 AI 或全機零動手）跑懒人腳本，也都在 zip 內：
+   - 某一家 AI：`bash multi-agent/adapters/quickstart.sh <ai> /path/to/專案`
+   - 全機永久免動手：`bash multi-agent/adapters/zero-touch-setup.sh`
 
 zip 內的 `manifest.json` 有每個檔案的指紋（SHA-256），可核對完整性。
 
@@ -259,6 +265,9 @@ zip 內的 `manifest.json` 有每個檔案的指紋（SHA-256），可核對完�
 | 跑起來好慢／好貴？ | 把 `params.dry_run` 設 `"true"`（空跑），或 `bench` 設 `demo`（免費）。 |
 | 報告裡 `score` 是 `None`？ | 那代表「那次評分沒成功」，**不是 0 分、也不是退步**。看 log 修完再判斷。 |
 | 測試失敗一次它就一直重跑嗎？ | 不會。10 分鐘冷卻內同種情況只記一次；而且它重跑的是「改良流程」，不會去反覆修你的 build。 |
+| 想一次接 8 家 AI、不想重複裝？ | 用懒人腳本 `bash multi-agent/adapters/quickstart.sh <ai> <專案>`，一家 AI 一條命令全搞定。 |
+| 想全機免動手、完全不用管？ | 用 `bash multi-agent/adapters/zero-touch-setup.sh`（跑一次永久生效）；某個專案不想被影響就在該專案放個 `HARNESS2_LOOP_OFF` 檔案。 |
+| 怎麼撤掉全機零動手？ | `bash multi-agent/adapters/zero-touch-setup.sh --uninstall`。 |
 | 怎麼確認整套真的在動？ | 看第 7 節那三條 log 命令；或手動餵一筆假資料（下方）： |
 
 手動煙霧測試（三行，確認觸發鏈路通）：
@@ -277,6 +286,7 @@ Get-Content "$HOME\.Agnes Code\plugins\harness2-loop\.state\harness2-loop.log" -
 
 - **花錢提醒**：跑 `jb` / `lab` / `wb` 真實大試時，AI 真的會動用模型額度；初次使用請從 `demo` + 空跑開始。
 - **憑證檔案**（`.agns_bridge.env`）不要放進 git、不要傳给别人——它已設為自動忽略。
+- **全機零動手的範圍（zero-touch）**：`zero-touch-setup.sh` 會改動**全機 git 預設**（所有 git 專案 commit 都會記紙條）並掛一支定時排程。影響面較大，建議**先從懒人腳本（單專案）開始**；真要全機時再上 zero-touch，並記住「放 `HARNESS2_LOOP_OFF` 可單專案關掉、`--uninstall` 可全部撤銷」。
 - **各 AI 工具的路徑會變**：第 8 節的 MCP 片段是起點，正式使用前對一次該家的最新文件。
 - **這套工具的定位**：持續改良 AI 的工作方法，不是 CI/CD、不是測試框架本身。
   它假設你的專案「有用 git」；build 失敗的訊號可自動或手動記錄。
