@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "harness2": {
+      "command": "python",
+      "args": ["-m", "mcp_server.harness2_mcp"],
+      "cwd": "E:/Self-developed_Apps/G3/harness2",
+      "env": {
+        "HARNESS2_REPO": "E:/Self-developed_Apps/G3/harness2",
+        "HARNESS2_RUNS_DIR": "E:/Self-developed_Apps/G3/harness2/runs"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "_note": "WorkBuddy (Tencent office agent, ex-CodeBuddy) has no documented MCP config path. Two options: (a) if it supports MCP, copy this block into its MCP settings and confirm the key name with the WorkBuddy docs; (b) if it does NOT support MCP, rely on the universal layers instead: install the git post-commit hook (multi-agent/adapters/git/install.sh) so every commit writes the flag, and use a scheduled drain_requeue.py. The agent never needs to call the tool itself.",
+  "mcpServers": {
+    "harness2": {
+      "command": "python",
+      "args": ["-m", "mcp_server.harness2_mcp"],
+      "cwd": "E:/Self-developed_Apps/G3/harness2",
+      "env": {
+        "HARNESS2_REPO": "E:/Self-developed_Apps/G3/harness2",
+        "HARNESS2_RUNS_DIR": "E:/Self-developed_Apps/G3/harness2/runs"
+      }
+    }
+  }
+}
