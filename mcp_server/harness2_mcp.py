@@ -168,19 +168,36 @@ def _run_cli(tool: str, args: dict[str, Any], timeout_s: int) -> tuple[bool, str
 
 # The harness2-loop hooks plugin (no headless CLI exists on desktop Agnes
 # Code) records trigger flags here; MCP tools drain it instead of spawning.
+#
+# Two possible locations, checked in order:
+#   1. GLOBAL plugin:  ~/.Agnes Code/plugins/harness2-loop/.state/pending_re.json
+#      (set up once, applies to ANY project; the preferred location)
+#   2. PROJECT plugin: <REPO_ROOT>/.Agnes Code/plugins/harness2-loop/.state/…
+#      (legacy per-project copy; kept for backward compatibility)
 _REQUEUE_REL = os.path.join(".Agnes Code", "plugins", "harness2-loop", ".state", "pending_re.json")
 
 
+def _requeue_paths() -> list[Path]:
+    global_root = Path.home() / ".Agnes Code" / "plugins" / "harness2-loop"
+    project_root = REPO_ROOT / ".Agnes Code" / "plugins" / "harness2-loop"
+    return [global_root / ".state" / "pending_re.json", project_root / ".state" / "pending_re.json"]
+
+
 def _requeue_path() -> Path:
-    return REPO_ROOT / _REQUEUE_REL
+    """Return the FIRST path that has a pending flag (global wins)."""
+    for p in _requeue_paths():
+        if p.exists():
+            return p
+    return _requeue_paths()[0]
 
 
 def _requeue_read() -> dict | None:
-    p = _requeue_path()
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+    for p in _requeue_paths():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+    return None
 
 
 def _requeue_consume() -> bool:

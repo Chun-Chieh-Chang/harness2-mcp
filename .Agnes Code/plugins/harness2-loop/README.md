@@ -163,6 +163,35 @@ Verify detection (the name `harness2-loop` should appear):
 Get-ChildItem "<project>\.Agnes Code\plugins\harness2-loop" -Recurse
 ```
 
+### Global install (applies to every project)
+
+To have the closed loop work while you develop **any** project (not just
+this repository), copy the plugin into the user-level plugins dir — Agnes
+Code loads it for all projects:
+
+```powershell
+# 1. copy the plugin to the global location
+robocopy "<project>\.Agnes Code\plugins\harness2-loop" `
+  "$HOME\.Agnes Code\plugins\harness2-loop" /E
+
+# 2. verify
+Get-ChildItem "$HOME\.Agnes Code\plugins\harness2-loop" -Recurse
+```
+
+Then, in the **global** `config.json`:
+
+- keep `repo_root` pointing at the harness2 repository (that is where the
+  recipe and the `harness2` CLI modules live);
+- point `schedule_hint.windows_task_sch` at the **global** drain script
+  path;
+- leave `requeue.flag_path` as `.state/pending_re.json` (the global hook
+  writes the flag under the global plugin dir).
+
+The MCP server (`mcp_server/harness2_mcp.py`) checks **both** locations for
+the pending flag — global first, project copy as fallback — so `harness2_requeue`
+drains whichever one the hook wrote. This means: develop your own project,
+open Agnes Code, and the loop is active; no need to open the harness2 repo.
+
 To **disable** it without deleting files, add its name to `disabledPlugins` in
 the Agnes Code settings (project `<project>/.config/Agnes Code/settings.json`,
 or user `~/.config/Agnes Code/settings.json`):
