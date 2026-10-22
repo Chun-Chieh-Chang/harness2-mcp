@@ -50,6 +50,7 @@ INCLUDE = [
     "multi-agent/adapters/mcp/cline.mcp.json",
     "multi-agent/adapters/mcp/kiro.mcp.json",
     "multi-agent/adapters/mcp/minimax.mcp.json",
+    "multi-agent/adapters/opencode/quickstart.sh",
     # flowchart visual + audit pipeline + dev docs
     "scripts/verify-flowchart-spec.js",
     "dev_log.md",

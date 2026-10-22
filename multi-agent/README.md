@@ -40,8 +40,27 @@ multi-agent/
 │   │   ├── cline.mcp.json
 │   │   ├── kiro.mcp.json
 │   │   └── minimax.mcp.json
+│   └── opencode/
+│       └── quickstart.sh          # ONE-LINE autopilot for opencode
 └── README.md                       # this file
 ```
+
+## One-line autopilot (no manual steps)
+
+If you don't want to run the three layers by hand, opencode ships a
+single setup script that does **all of them at once** (git hook + MCP
+config + optional 60-minute scheduler):
+
+```sh
+sh multi-agent/adapters/opencode/quickstart.sh /path/to/your-project
+```
+
+After that single command, every `git commit` writes the pending flag
+automatically; opencode can drain it in-session via `harness2_requeue`,
+and the scheduler drains it off-session. **Nothing more to type.**
+
+(Other agents still use the three layers above — quickstart is currently
+opencode-specific; the same pattern generalizes easily.)
 
 ## Per-agent quickstart
 
@@ -69,7 +88,7 @@ agent's own MCP config. The exact target location differs per agent:
 
 | Agent | MCP config location | Notes |
 |---|---|---|
-| **opencode** | `opencode.json` → `mcp.harness2` | uses `type:"local"` + `command` array |
+| **opencode** | `opencode.json` → `mcp.harness2` | use `type:"local"` + `command` array; **or run `adapters/opencode/quickstart.sh` (one-line autopilot)** |
 | **Cline** | `~/.cline/mcp.json` or VS Code → Cline panel → MCP Servers | standard `mcpServers` block; CLI vs extension |
 | **Trae** | `<project>/.trae/mcp.json` | project-scoped, commitable |
 | **Qoder** | Qoder CLI / IDE MCP settings (stdio/sse/http) | stdio block shown |

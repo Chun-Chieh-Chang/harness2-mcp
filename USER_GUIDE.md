@@ -194,6 +194,12 @@ Get-Content "$HOME\.Agnes Code\plugins\harness2-loop\.state\recipe-runs.log" -Ta
 
 自動循環**不綁定任何一家 AI**。三條路（照順序優先）：
 
+> **懶人模式（一次全設定好）**：如果你用 opencode，這一行直接幫你三件全做（git hook + opencode 的 MCP 設定 + 排程）：
+> ```sh
+> sh multi-agent/adapters/opencode/quickstart.sh /path/to/你的專案
+> ```
+> 跑完之後就「不用再動了」——之後每次 commit 自動記紙條、自動被撿起重跑。
+
 1. **git 掛勾（最通用）**：任何用 git 的 AI 都生效。裝一次：
    ```sh
    sh multi-agent/adapters/git/install.sh /path/to/你的專案
