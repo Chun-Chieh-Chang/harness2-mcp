@@ -81,7 +81,7 @@ exclusive (whichever runs first consumes it) and idempotent.
 ```mermaid
 flowchart TD
     subgraph once["One-time setup (do once)"]
-        A1["Open harness2 in Agnes Code (project window)"] --> A2["Agnes Code mcp harness2<br/>(harness2_* tools in session scope)"]
+        A1["Open your project in Agnes Code (global plugin auto-loads)"] --> A2["harness2_* MCP tools available<br/>(no CLI needed — plugin loads them)"]
         A2 --> A3["Align config.json: params / dry_run / cooldown<br/>/ requeue / schedule_hint"]
         A3 --> A4["Smoke test: feed a fake payload to rerun_recipe.py<br/>log must show 'launched: ...'"]
     end

@@ -48,7 +48,7 @@ harness2 已從「手動 CLI 框架」升級為「**Agnes Code 內建、可自�
 | # | 事項 | 阻塞原因 | 建議動作 |
 |---|---|---|---|
 | P1 | ~~`config.json` 的 `cli` 欄位在多數機器 PATH 上找不到~~ | **已以旗標協議關閉**：桌面版 Agnes Code 只有 GUI（`AgnesCode.exe`）+ `agnesd.exe`，無 headless CLI 二進位（已驗證）。改為「hook 只寫 `.state/pending_re.json` 旗標 → B（MCP `harness2_requeue`）或 C（`drain_requeue.py` 排程）drain 執行」，兩端都不需要外部 CLI。已移除 `config.json` 的 `cli` 欄。 | 無（待辦清掉）；若要改 drain 路徑，調 `config.json` 的 `requeue.flag_path` 與 `schedule_hint` |
-| P2 | recipe 未機器解析（PyYAML 未安裝） | Python 3.15 無 C++ 工具鏈，`pip install pyyaml` 失敗 | 在有 PyYAML 的環境跑一次 `Agnes Code run --recipe recipes/harness2-any-project.yaml --params bench=demo --dry-run=true` 確認 schema；或改 `uv pip install pyyaml` |
+| P2 | recipe 未機器解析（PyYAML 未安裝） | Python 3.15 無 C++ 工具鏈，`pip install pyyaml` 失敗 | 在有 PyYAML 的環境（或 `uv pip install pyyaml`）機器解析 `recipes/harness2-any-project.yaml` 確認 schema；或 drain 一次經 MCP `harness2_requeue` 看是否報 recipe schema 錯 |
 | P3 | `scripts/verify-flowchart-spec.js` 未在本機跑過（Node 缺失） | 本機無 Node.js | 裝 Node 20+ 後 `node scripts/verify-flowchart-spec.js .agnes/artifacts/flowcharts/harness2-loop-flowchart.html`，全綠才算 LAYER 1/2/3 全 PASS |
 | P4 | `.agnes/cache/docs*` 內是外部文件快照，未 git 追蹤 | `.gitignore` 已排除 | 若日後要分享文件，改把 `docs/` 內文件 copy 進本 repo 並移除 cache 路徑引用 |
 | P5 | ~~若要把 hooks 做成「跨專案」而非「本專案」~~ | **已解決**：全域插件已裝到 `~/.Agnes Code/plugins/harness2-loop/`（任何專案開 Agnes 都自動載入，MCP 端雙路徑讀全域/專案旗標）；且 `multi-agent/` 提供 agent-agnostic 的 git `post-commit` 觸發器，任何用 git 的專案 commit 即觸發 | 無（待辦清掉）；跨 agent 細節見 `multi-agent/README.md` |
@@ -69,11 +69,12 @@ harness2 已從「手動 CLI 框架」升級為「**Agnes Code 內建、可自�
 ## 5. 接手者可快速上手的 5 條命令
 
 ```powershell
-# 0) 在 harness2 專案視窗開 Agnes Code，確認 plugin 被偵測到
+# 0) 確認 plugin 被偵測到（專案 / 全域皆可）
 Get-ChildItem ".Agnes Code\plugins\harness2-loop" -Recurse
+#    或在任何專案下：Get-ChildItem "$HOME\.Agnes Code\plugins\harness2-loop" -Recurse
 
-# 1) 啟用 MCP 工具
-Agnes Code mcp harness2
+# 1) MCP 工具（harness2_*）由插件在 Agnes Code session 自動載入，無須手動啟用
+#    （桌面版無 CLI，故沒有 `Agnes Code mcp` 指令；直接開 Agnes Code 即可）
 
 # 2) 手動餵 build 失敗 payload 給 hook（煙霧測試）
 '{"event":"PostToolUseFailure","tool_input":{"command":"cargo test"}}' |

@@ -18,6 +18,7 @@ runs/
 .agnes/cache/
 .agnes/work/
 .agnes/artifacts/
+.agnes/uploads/
 
 # agns_bridge env (contains secrets when Path A is configured)
 .agns_bridge.env

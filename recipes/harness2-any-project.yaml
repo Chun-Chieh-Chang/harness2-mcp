@@ -3,13 +3,23 @@
 # Recipe file locations: ./recipe (repo root), a .yaml/.yml path, or a recipe-library
 # entry (name). See docs/guides/recipes/session-recipes.md.
 #
-# Run it:
-#   Agnes Code run --recipe recipes/harness2-any-project.yaml \
-#       --params project_name=<name> bench=demo k=1 mode=parallel substrate=ags
+# The recipe itself (the setup→check→run→judge→report flow, structured output, retry)
+# is agent-agnostic. Desktop Agnes Code ships NO headless CLI binary, so this recipe
+# is NOT launched by a hook. Instead, the harness2-loop hooks plugin records a
+# trigger flag on build-failure / commit, and the recipe is drained two ways:
+#   B) in-session  : the `harness2_requeue` MCP tool reads the flag and runs the
+#                    pipeline (explicit params win over the flag's).
+#   C) scheduled   : `drain_requeue.py` (Task Scheduler / cron) reads the flag and
+#                    runs the same pipeline via `python -m harness2.cli.*`.
+# See .Agnes Code/plugins/harness2-loop/README.md (flag protocol) and
+# multi-agent/README.md (running under any agent).
 #
-# Schedule it (runs headless nightly, results saved under runs/):
-#   Agnes Code schedule add --schedule-id harness2-nightly \
-#       --cron "0 2 * * *" --recipe-source recipes/harness2-any-project.yaml
+# Run a single sweep manually (equivalent of a one-shot recipe run):
+#   harness2-setup <bench>
+#   harness2-check  --bench <bench>
+#   harness2 --bench <bench> --k 1 --mode parallel --substrate ags
+#   harness2-judge  --bench <bench> --k 1 --mode parallel
+#   harness2-report --bench <bench> --k 1 --mode parallel
 #
 # The `extensions` block below makes the harness2 MCP tools available for the whole
 # recipe run; without it only Agnes Code's default extensions would be in scope.

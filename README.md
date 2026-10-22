@@ -181,12 +181,18 @@ node scripts/verify-flowchart-spec.js .agnes/artifacts/flowcharts/harness2-loop-
 ### Activation steps
 
 ```powershell
-# 1. Enable the harness2_* MCP tools in the current Agnes Code project
-Agnes Code mcp harness2
+# 1. The harness2-loop plugin is auto-loaded from the project dir
+#    (<project>/.Agnes Code/plugins/harness2-loop/) when Agnes Code opens
+#    this project — no install step. Confirm it is detected:
+Get-ChildItem ".Agnes Code\plugins\harness2-loop" -Recurse
+#    (For use in ANY project, install it globally once — see "Global install"
+#     in .Agnes Code/plugins/harness2-loop/README.md.)
 
-# 2. One-time smoke test of the hook chain (no model calls, no cost)
+# 2. One-time smoke test of the hook chain (no model calls, no cost):
+#    feed a fake build-failure payload; the log must show a flag was written.
 '{"event":"PostToolUseFailure","tool_input":{"command":"cargo test"}}' |
   python ".Agnes Code/plugins/harness2-loop/scripts/rerun_recipe.py" build-failure
+Get-Content ".Agnes Code/plugins/harness2-loop/.state/harness2-loop.log" -Tail 5
 
 # 3. (No external CLI needed) The hook only writes a pending flag;
 #    the re-run is drained either in-session (MCP harness2_requeue) or

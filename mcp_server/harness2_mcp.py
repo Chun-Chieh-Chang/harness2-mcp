@@ -16,6 +16,8 @@ Tools exposed (one per CLI entry point in pyproject.toml, plus bridge helpers):
     harness2_report   -> harness2-report --bench <bench> ...
     harness2_demo     -> harness2-demo   (deterministic, zero credentials)
     harness2_agns_demo-> harness2-agns-demo (Path B: Agnes as substrate)
+    harness2_requeue  -> drain a pending re-run flag written by the harness2-loop
+                        hooks plugin (flag protocol); safe no-op when no flag.
     agnes_bridge_status / agnes_bridge_start (Path A: OpenAI-compatible proxy on 127.0.0.1:8620)
 """
 
